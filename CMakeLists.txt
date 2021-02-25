@@ -18,5 +18,5 @@ set(SOURCES
     ${THIRDPARTY_DIR}/stb_truetype.c
     ${THIRDPARTY_DIR}/stb_image_write.c
 )
-add_library(libplot STATIC ${SOURCES})
-target_include_directories(libplot PUBLIC ${INCLUDE_DIR} ${THIRDPARTY_DIR} ${SOURCES_DIR})
+add_library(plot STATIC ${SOURCES})
+target_include_directories(plot PUBLIC ${INCLUDE_DIR} ${THIRDPARTY_DIR} ${SOURCES_DIR})
