@@ -9,7 +9,7 @@ int main(){
     double ay[] = {0, 1, 4, 9};
     size_t size = sizeof(ax)/sizeof(double);
 
-    libplot::PlotBuilder::Trace("graph.jpg", "Test Graph", {ax, ay, size}, 1280, 720);
+    libplot::PlotBuilder::Trace("graph.jpg", "Parabola", {ax, ay, size}, 1280, 720);
 }
 
 ```
