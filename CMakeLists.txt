@@ -13,6 +13,7 @@ set(SOURCES
     ${SOURCES_DIR}/image.cpp
     ${SOURCES_DIR}/pixel.cpp
     ${SOURCES_DIR}/rasterizer.cpp
+    ${SOURCES_DIR}/utils.cpp
     ${SOURCES_DIR}/plot_builder.cpp
     ${SOURCES_DIR}/opensans_regular.cpp
     ${THIRDPARTY_DIR}/stb_truetype.c

@@ -1,6 +1,8 @@
 #ifndef LIBPLOT_PIXEL_HPP
 #define LIBPLOT_PIXEL_HPP
 
+#include <cstddef>
+
 namespace libplot{
 
 struct Pixel{
@@ -21,6 +23,13 @@ struct Color{
     static constexpr Pixel Cyan    = {0,   255, 255, 255};
     static constexpr Pixel Magenta = {255, 0,   255, 255};
     static constexpr Pixel Orange  = {255, 128, 0,   255};
+};
+
+class PaletteGenerator{
+private:
+    size_t m_Counter = 0;
+public:
+    Pixel NextColor();
 };
 
 }//namespace libplot

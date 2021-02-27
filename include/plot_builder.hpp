@@ -11,9 +11,8 @@ struct TraceData{
     size_t Count = 0;
 };
 
-class PlotBuilder{
-public:
-    static void Trace(const char *outfilename, const char *graph_name, TraceData trace, size_t image_width, size_t image_height);
+struct PlotBuilder{
+    static void Trace(const char *outfilepath, const char *graph_name, size_t image_width, size_t image_height, TraceData traces[], size_t traces_count);
 };
 
 }//namespace libplot::

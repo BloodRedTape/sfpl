@@ -9,9 +9,13 @@
 int main(){
     double ax[] = {0, 1, 2, 3, 4,  5};
     double ay[] = {0, 1, 4, 9, 16, 25};
-    size_t size = sizeof(ax)/sizeof(double);
 
-    libplot::PlotBuilder::Trace("parabola.jpg", "Test Graph", {ax, ay, size}, 1280, 720);
+    TraceData trace;
+    trace.x = ax;
+    trace.y = ay;
+    trace.Count = sizeof(ax)/sizeof(double);
+
+    libplot::PlotBuilder::Trace("parabola.jpg", "Test Graph", 1280, 720, &trace, 1);
 }
 
 ```
