@@ -6,9 +6,10 @@
 namespace libplot{
 
 struct TraceData{
-    double *x    = nullptr;
-    double *y    = nullptr;
+    double *x = nullptr;
+    double *y = nullptr;
     size_t Count = 0;
+    const char *TraceName = "";
 };
 
 struct PlotBuilder{

@@ -141,6 +141,10 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
             Rasterizer::DrawLine(trace, color, config.LineWidth, p0.x, p0.y, p1.x, p1.y);
         }
+
+        TracePoint last_trace = ClampToPlotSize(config, {traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]});
+
+        Rasterizer::DrawString(background, color, traces[i].TraceName, axis_font_size, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
     }
 
     background.DrawImage(trace, config.MarginX, config.MarginY);
