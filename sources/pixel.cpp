@@ -14,13 +14,13 @@ constexpr Pixel Color::Orange;
 
 
 Pixel Colors[]={
-    Color::Green,
-    Color::Blue,
-    Color::Red,
-    Color::Orange,
-    Color::Black,
-    Color::Magenta,
-    Color::Cyan
+    {51, 234, 66, 255},
+    {51, 118, 234, 255},
+    {234, 51, 51, 255},
+    {234, 155, 51, 255},
+    {0, 0, 0, 255},
+    {234, 51, 143, 255},
+    {51, 213, 234, 255}
 };
 
 Pixel PaletteGenerator::NextColor(){
