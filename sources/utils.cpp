@@ -30,7 +30,7 @@ std::string Shorten(double n){
         }
     }
     std::stringstream ss;
-    ss << std::setw(3 + (postfix == 0)) << std::ceil(n) << postfix;
+    ss << std::setw(3 + (postfix == 0)) << std::ceil(n*10)/10 << postfix;
     return ss.str();
 }
 
