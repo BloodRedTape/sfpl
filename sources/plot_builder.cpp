@@ -111,6 +111,8 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
     float dx = (config.Limits.MaxX - config.Limits.MinX) / 5;
     float x = config.Limits.MinX; 
+    float dy = (config.Limits.MaxY - config.Limits.MinY) / 5;
+    float y = config.Limits.MinY; 
 
     size_t counter = 0;
     while(x < std::floor(config.Limits.MaxX)){
@@ -122,9 +124,14 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
                 Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
                 Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(traces[i].x[j]).c_str(), axis_font_size, config.MarginX + cross.x - axis_font_size/2, config.MarginY - y_font_margin);
 
+                x += dx;
+            }
+            if(traces[i].y[j] >= y){
+                TracePoint cross = ClampToPlotSize(config, {traces[i].x[j], traces[i].y[j]});
+
                 Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
                 Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(traces[i].y[j]).c_str(), axis_font_size, config.MarginX - x_font_margin, config.MarginY + cross.y - axis_font_size / 4);
-                x += dx;
+                y += dy;
             }
         }
     }
