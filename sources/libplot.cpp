@@ -13,29 +13,29 @@
 
 typedef struct
 {
-   unsigned char *data;
-   int cursor;
-   int size;
+    unsigned char *data;
+    int cursor;
+    int size;
 } stbtt__buf;
 
 struct stbtt_fontinfo
 {
-   void           * userdata;
-   unsigned char  * data;              // pointer to .ttf file
-   int              fontstart;         // offset of start of font
+    void           * userdata;
+    unsigned char  * data;              // pointer to .ttf file
+    int              fontstart;         // offset of start of font
 
-   int numGlyphs;                     // number of glyphs, needed for range checking
+    int numGlyphs;                     // number of glyphs, needed for range checking
 
-   int loca,head,glyf,hhea,hmtx,kern,gpos,svg; // table locations as offset from start of .ttf
-   int index_map;                     // a cmap mapping for our chosen character encoding
-   int indexToLocFormat;              // format needed to map from glyph index to glyph
+    int loca,head,glyf,hhea,hmtx,kern,gpos,svg; // table locations as offset from start of .ttf
+    int index_map;                     // a cmap mapping for our chosen character encoding
+    int indexToLocFormat;              // format needed to map from glyph index to glyph
 
-   stbtt__buf cff;                    // cff font data
-   stbtt__buf charstrings;            // the charstring index
-   stbtt__buf gsubrs;                 // global charstring subroutines index
-   stbtt__buf subrs;                  // private charstring subroutines index
-   stbtt__buf fontdicts;              // array of font dicts
-   stbtt__buf fdselect;               // map from glyph to fontdict
+    stbtt__buf cff;                    // cff font data
+    stbtt__buf charstrings;            // the charstring index
+    stbtt__buf gsubrs;                 // global charstring subroutines index
+    stbtt__buf subrs;                  // private charstring subroutines index
+    stbtt__buf fontdicts;              // array of font dicts
+    stbtt__buf fdselect;               // map from glyph to fontdict
 };
 
 extern "C" int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
@@ -326,6 +326,51 @@ std::string Shorten(double n){
     return ss.str();
 }
 
+size_t DigitsCount(double value){
+
+    value = std::fabs(value);
+
+    size_t i = 1;
+
+    for(; i<16; ++i){
+        if(std::floor(value/=10) < 0.001)return i;
+    }
+    return i;
+}
+
+size_t GetPower(double value){
+    if(fabs(value) < 1000)return 1;
+    return DigitsCount(value)-2;
+}
+
+double AlignUp(double value){
+    bool invert = fabs(value) < 1.0;
+
+    if(invert) value = pow(value, -1);
+    {
+        auto power = pow(10, GetPower(value));
+
+        value = std::ceil(value / power) * power;
+    }
+    if(invert) value = pow(value, -1);
+
+    return value;
+}
+
+double AlignDown(double value){
+    bool invert = fabs(value) < 1.0;
+
+    if(invert) value = pow(value, -1);
+    {
+        auto power = pow(10, GetPower(value));
+
+        value = std::floor(value / power) * power;
+    }
+    if(invert) value = pow(value, -1);
+
+    return value;
+}
+
 }//namespace Utils::
 
 
@@ -340,6 +385,7 @@ struct PlotLimits{
 
 struct PlotConfig{
     PlotLimits Limits;
+    PlotLimits LimitsAligned;
     Pixel TintColor;
     Pixel BackgroundColor;
     Pixel TextColor;
@@ -349,6 +395,10 @@ struct PlotConfig{
     size_t MarginY;
     size_t PlotSizeX;
     size_t PlotSizeY; 
+    float TitleFontSize;
+    float AxisFontSize;
+    float XFontMargin;
+    float YFontMargin;
 };
 
 PlotLimits FindLimits(TraceData array){
@@ -373,8 +423,8 @@ PlotLimits FindLimits(TraceData array){
 
 inline TracePoint ClampToPlotSize(const PlotConfig &config, TracePoint point){
     return {
-        config.PlotSizeX * ((point.x - config.Limits.MinX)/(config.Limits.MaxX - config.Limits.MinX)),
-        config.PlotSizeY * ((point.y - config.Limits.MinY)/(config.Limits.MaxY - config.Limits.MinY))
+        config.PlotSizeX * ((point.x - config.LimitsAligned.MinX)/(config.LimitsAligned.MaxX - config.LimitsAligned.MinX)),
+        config.PlotSizeY * ((point.y - config.LimitsAligned.MinY)/(config.LimitsAligned.MaxY - config.LimitsAligned.MinY))
     };
 }
 
@@ -400,6 +450,26 @@ PlotLimits FindArrayLimits(TraceData traces[], size_t traces_count){
     return result;
 }
 
+PlotLimits Align(PlotLimits limits){
+    std::cout << "Before\n" << std::fixed;
+    std::cout << "MinX: " << limits.MinX << std::endl;
+    std::cout << "MinY: " << limits.MinY << std::endl;
+    std::cout << "ManX: " << limits.MaxX << std::endl;
+    std::cout << "ManY: " << limits.MaxY << std::endl;
+    
+    limits.MinX = Utils::AlignDown(limits.MinX);
+    limits.MinY = Utils::AlignDown(limits.MinY);
+    limits.MaxX = Utils::AlignUp(limits.MaxX);
+    limits.MaxY = Utils::AlignUp(limits.MaxY);
+
+    std::cout << "After\n";
+    std::cout << "MinX: " << limits.MinX << std::endl;
+    std::cout << "MinY: " << limits.MinY << std::endl;
+    std::cout << "ManX: " << limits.MaxX << std::endl;
+    std::cout << "ManY: " << limits.MaxY << std::endl;
+    return limits;
+}
+
 void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, TraceData traces[], size_t traces_count){
 #ifndef NDEBUG
     assert(traces);
@@ -410,6 +480,7 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
     PlotConfig config;
     config.Limits          = FindArrayLimits(traces, traces_count);
+    config.LimitsAligned   = Align(config.Limits);
     config.TintColor       = {245, 252, 237, 255};
     config.BackgroundColor = Color::White;
     config.TextColor       = {80, 80, 80, 255};
@@ -419,44 +490,32 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     config.MarginY         = image_height * 0.1;
     config.PlotSizeX       = image_width - config.MarginX * 2;
     config.PlotSizeY       = image_height - config.MarginY * 2;
-
-    float title_font_size = std::min(config.MarginX, config.MarginY) * 0.6;
-    float axis_font_size  = title_font_size/2;
-    float x_font_margin   = axis_font_size * 2;
-    float y_font_margin   = axis_font_size * 1.05;
+    config.TitleFontSize   = std::min(config.MarginX, config.MarginY) * 0.6;
+    config.AxisFontSize    = config.TitleFontSize/2;
+    config.XFontMargin     = config.AxisFontSize * 2;
+    config.YFontMargin     = config.AxisFontSize* 1.05;
 
     Image background(image_width, image_height, config.BackgroundColor);
 
     Rasterizer::DrawRect(background, config.TintColor, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
-    Rasterizer::DrawString(background, config.TextColor, graph_name, title_font_size, config.MarginX, background.Height() - config.MarginY*0.7);
+    Rasterizer::DrawString(background, config.TextColor, graph_name, config.TitleFontSize, config.MarginX, background.Height() - config.MarginY*0.7);
 
-    float dx = (config.Limits.MaxX - config.Limits.MinX) / 8;
-    float x = config.Limits.MinX; 
-    float dy = (config.Limits.MaxY - config.Limits.MinY) / 8;
-    float y = config.Limits.MinY; 
+    size_t segments = 8;
 
-    size_t counter = 0;
-    while(x < std::floor(config.Limits.MaxX)){
-        size_t i = counter++ % traces_count;
-
-        for(size_t j = 0; j<traces[i].Count; ++j){
-            if(traces[i].x[j] >= x){
-                TracePoint cross = ClampToPlotSize(config, {traces[i].x[j], traces[i].y[j]});
-                Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
-                Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(traces[i].x[j]).c_str(), axis_font_size, config.MarginX + cross.x - axis_font_size/2, config.MarginY - y_font_margin);
-
-                x += dx;
-            }
-            if(traces[i].y[j] >= y){
-                TracePoint cross = ClampToPlotSize(config, {traces[i].x[j], traces[i].y[j]});
-
-                Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
-                Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(traces[i].y[j]).c_str(), axis_font_size, config.MarginX - x_font_margin, config.MarginY + cross.y - axis_font_size / 4);
-                y += dy;
-            }
-        }
+    auto dx = (config.LimitsAligned.MaxX - config.LimitsAligned.MinX) / segments;
+    for(auto i = config.LimitsAligned.MinX; i<=config.LimitsAligned.MaxX; i+=dx){
+        TracePoint cross = ClampToPlotSize(config, {i, 0});
+        Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
+        Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX + cross.x - config.AxisFontSize/2, config.MarginY - config.YFontMargin);
     }
 
+    auto dy = (config.LimitsAligned.MaxY - config.LimitsAligned.MinY) / segments;
+    for(auto i = config.LimitsAligned.MinY; i<=config.LimitsAligned.MaxY; i+=dy){
+        TracePoint cross = ClampToPlotSize(config, {0, i});
+
+        Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
+        Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX - config.XFontMargin, config.MarginY + cross.y - config.AxisFontSize / 4);
+    }
 
     PaletteGenerator colors;    
     Image trace(config.PlotSizeX, config.PlotSizeY, {255, 255, 255, 0});
@@ -472,7 +531,7 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
         TracePoint last_trace = ClampToPlotSize(config, {traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]});
 
-        Rasterizer::DrawString(background, color, traces[i].TraceName, axis_font_size, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
+        Rasterizer::DrawString(background, color, traces[i].TraceName, config.AxisFontSize, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
     }
 
     background.DrawImage(trace, config.MarginX, config.MarginY);

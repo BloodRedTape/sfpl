@@ -6,6 +6,8 @@
 
 To use library copy libplot.cpp, libplot.hpp and font.cpp inside your project and feed them to the compiler. 
 
+P.S. It is better not to open font.cpp :-)
+
 ### Examples
 ```c++
 #include "libplot.hpp"
