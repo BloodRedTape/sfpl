@@ -1,5 +1,5 @@
-#ifndef LIBPLOT_PLOT_BUILDER_HPP
-#define LIBPLOT_PLOT_BUILDER_HPP
+#ifndef LIBPLOT_HPP
+#define LIBPLOT_HPP
 
 #include <cstddef>
 

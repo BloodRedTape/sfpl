@@ -2,9 +2,15 @@
 ## Simple and fast c++ plot library
 ### Png, jpg and tga output image formats are supported
 ***
+## Usage
+
+To use library copy libplot.cpp, libplot.hpp and font.cpp inside your project and feed them to the compiler. 
+
 ### Examples
 ```c++
-#include "plot_builder.hpp"
+#include "libplot.hpp"
+
+using namespace libplot;
 
 int main(){
     double ax[] = {0, 1, 2, 3, 4,  5};
@@ -15,7 +21,7 @@ int main(){
     trace.y = ay;
     trace.Count = sizeof(ax)/sizeof(double);
 
-    libplot::PlotBuilder::Trace("parabola.jpg", "Test Graph", 1280, 720, &trace, 1);
+    PlotBuilder::Trace("parabola.jpg", "Test Graph", 1280, 720, &trace, 1);
 }
 
 ```
