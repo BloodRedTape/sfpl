@@ -319,30 +319,31 @@ struct ScientificDouble{
 };
 
 char PostfixTable[] = {
-    'k',
-    'm',
-    'b',
-    't'
-};
-
-float PowerTable[] = {
-    1000.f,
-    1000000.f,
-    1000000000.f,
-    1000000000000.f
+    0,
+    'K',
+    'M',
+    'B',
+    't',
+    'q',
+    'Q',
+    's',
+    'S'
 };
 
 std::string Shorten(double n){
     char postfix = 0;
-    for(size_t i = sizeof(PostfixTable); i>0; --i){
-        if(fabs(n) > PowerTable[i - 1]){
-            n/=PowerTable[i - 1];
-            postfix = PostfixTable[i - 1];
-            break;
-        }
+    ScientificDouble value(n);
+
+    if(value.Mantissa > 0){
+        postfix = PostfixTable[(size_t)value.Mantissa/3];
+        value.Mantissa = size_t(value.Mantissa)%3;
+    }else{
+        value.Exponent = std::floor(value.Exponent * 100)/100;
     }
+
     std::stringstream ss;
-    ss << std::setw(3 + (postfix == 0)) << std::ceil(n*10)/10 << postfix;
+
+    ss << std::setw(3 + (postfix == 0)) << value.ToDouble() << postfix;
     return ss.str();
 }
 
