@@ -298,6 +298,26 @@ void Rasterizer::DrawString(Image &image, const Pixel &color, const char *string
 
 namespace Utils{
 
+struct ScientificDouble{
+    double Exponent;
+    double Mantissa;
+
+    inline ScientificDouble(double value){
+        if(value == 0){
+            Exponent = 0;
+            Mantissa = 0;
+            return;
+        }
+        
+        Mantissa = std::floor(log10(std::fabs(value)));
+        Exponent = value/pow(10, Mantissa);
+    }
+
+    double ToDouble(){
+        return Exponent * pow(10, Mantissa);
+    }
+};
+
 char PostfixTable[] = {
     'k',
     'm',
@@ -326,49 +346,26 @@ std::string Shorten(double n){
     return ss.str();
 }
 
-size_t DigitsCount(double value){
+void AlignPair(double &min, double &max, long multiple){
+    ScientificDouble scientific_min(min);
+    ScientificDouble scientific_max(max);
 
-    value = std::fabs(value);
+    max = scientific_max.Exponent * pow(10, std::fabs(scientific_max.Mantissa));
+    min = scientific_min.Exponent * pow(10, std::fabs(scientific_min.Mantissa));
+    
+    auto min_power = pow(10, std::fabs(scientific_min.Mantissa) == 0 ? 0 : std::fabs(scientific_min.Mantissa)-1);
 
-    size_t i = 1;
+    min = (long(min/min_power) - (multiple - long(std::fabs(min)/min_power)%multiple)%multiple) * min_power;
+    
+    auto max_power = pow(10, std::fabs(scientific_max.Mantissa) == 0 ? 0 : std::fabs(scientific_max.Mantissa)-1);
 
-    for(; i<16; ++i){
-        if(std::floor(value/=10) < 0.001)return i;
-    }
-    return i;
-}
+    max = (long(max/max_power) + (multiple - long(std::fabs(max)/max_power)%multiple)%multiple) * max_power;
 
-size_t GetPower(double value){
-    if(fabs(value) < 1000)return 1;
-    return DigitsCount(value)-2;
-}
+    scientific_min.Exponent = min / pow(10, std::fabs(scientific_min.Mantissa));
+    scientific_max.Exponent = max / pow(10, std::fabs(scientific_max.Mantissa));
 
-double AlignUp(double value){
-    bool invert = fabs(value) < 1.0;
-
-    if(invert) value = pow(value, -1);
-    {
-        auto power = pow(10, GetPower(value));
-
-        value = std::ceil(value / power) * power;
-    }
-    if(invert) value = pow(value, -1);
-
-    return value;
-}
-
-double AlignDown(double value){
-    bool invert = fabs(value) < 1.0;
-
-    if(invert) value = pow(value, -1);
-    {
-        auto power = pow(10, GetPower(value));
-
-        value = std::floor(value / power) * power;
-    }
-    if(invert) value = pow(value, -1);
-
-    return value;
+    min = scientific_min.ToDouble();
+    max = scientific_max.ToDouble();
 }
 
 }//namespace Utils::
@@ -384,6 +381,7 @@ struct PlotLimits{
 };
 
 struct PlotConfig{
+    long Segments;
     PlotLimits Limits;
     PlotLimits LimitsAligned;
     Pixel TintColor;
@@ -428,7 +426,7 @@ inline TracePoint ClampToPlotSize(const PlotConfig &config, TracePoint point){
     };
 }
 
-PlotLimits FindArrayLimits(TraceData traces[], size_t traces_count){
+PlotLimits FindArrayLimits(const TraceData traces[], size_t traces_count){
     PlotLimits result = {
         std::numeric_limits<double>::max(),
         std::numeric_limits<double>::max(),
@@ -450,17 +448,15 @@ PlotLimits FindArrayLimits(TraceData traces[], size_t traces_count){
     return result;
 }
 
-PlotLimits Align(PlotLimits limits){
+PlotLimits Align(PlotLimits limits, long multiple){
     std::cout << "Before\n" << std::fixed;
     std::cout << "MinX: " << limits.MinX << std::endl;
     std::cout << "MinY: " << limits.MinY << std::endl;
     std::cout << "ManX: " << limits.MaxX << std::endl;
     std::cout << "ManY: " << limits.MaxY << std::endl;
-    
-    limits.MinX = Utils::AlignDown(limits.MinX);
-    limits.MinY = Utils::AlignDown(limits.MinY);
-    limits.MaxX = Utils::AlignUp(limits.MaxX);
-    limits.MaxY = Utils::AlignUp(limits.MaxY);
+
+    Utils::AlignPair(limits.MinX, limits.MaxX, multiple);
+    Utils::AlignPair(limits.MinY, limits.MaxY, multiple);
 
     std::cout << "After\n";
     std::cout << "MinX: " << limits.MinX << std::endl;
@@ -470,7 +466,7 @@ PlotLimits Align(PlotLimits limits){
     return limits;
 }
 
-void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, TraceData traces[], size_t traces_count){
+void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
 #ifndef NDEBUG
     assert(traces);
     assert(traces_count);
@@ -479,8 +475,9 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 #endif
 
     PlotConfig config;
+    config.Segments        = 5;
     config.Limits          = FindArrayLimits(traces, traces_count);
-    config.LimitsAligned   = Align(config.Limits);
+    config.LimitsAligned   = Align(config.Limits, config.Segments);
     config.TintColor       = {245, 252, 237, 255};
     config.BackgroundColor = Color::White;
     config.TextColor       = {80, 80, 80, 255};
@@ -500,16 +497,15 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     Rasterizer::DrawRect(background, config.TintColor, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
     Rasterizer::DrawString(background, config.TextColor, graph_name, config.TitleFontSize, config.MarginX, background.Height() - config.MarginY*0.7);
 
-    size_t segments = 8;
 
-    auto dx = (config.LimitsAligned.MaxX - config.LimitsAligned.MinX) / segments;
+    auto dx = (config.LimitsAligned.MaxX - config.LimitsAligned.MinX) / config.Segments;
     for(auto i = config.LimitsAligned.MinX; i<=config.LimitsAligned.MaxX; i+=dx){
         TracePoint cross = ClampToPlotSize(config, {i, 0});
         Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
         Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX + cross.x - config.AxisFontSize/2, config.MarginY - config.YFontMargin);
     }
 
-    auto dy = (config.LimitsAligned.MaxY - config.LimitsAligned.MinY) / segments;
+    auto dy = (config.LimitsAligned.MaxY - config.LimitsAligned.MinY) / config.Segments;
     for(auto i = config.LimitsAligned.MinY; i<=config.LimitsAligned.MaxY; i+=dy){
         TracePoint cross = ClampToPlotSize(config, {0, i});
 

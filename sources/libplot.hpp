@@ -13,7 +13,7 @@ struct TraceData{
 };
 
 struct PlotBuilder{
-    static void Trace(const char *outfilepath, const char *graph_name, size_t image_width, size_t image_height, TraceData traces[], size_t traces_count);
+    static void Trace(const char *outfilepath, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count);
 };
 
 }//namespace libplot::
