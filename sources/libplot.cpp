@@ -338,6 +338,9 @@ std::string Shorten(double n){
         postfix = PostfixTable[(size_t)value.Mantissa/3];
         value.Mantissa = size_t(value.Mantissa)%3;
     }else{
+        if(value.Mantissa < -4){
+            value = ScientificDouble(0);
+        }
         value.Exponent = std::floor(value.Exponent * 100)/100;
     }
 
@@ -347,26 +350,23 @@ std::string Shorten(double n){
     return ss.str();
 }
 
+double AlignTo(double value, long multiple, bool up){
+    ScientificDouble scientific(value);
+    
+    value = scientific.Exponent * pow(10, std::fabs(scientific.Mantissa));
+
+    auto power = pow(10, std::fabs(scientific.Mantissa) == 0 ? 0 : std::fabs(scientific.Mantissa)-1);
+
+    value = (long(value/power) - ((multiple - long(std::fabs(value)/power)%multiple)%multiple)*(long)pow(-1, up)) * power;
+
+    scientific.Exponent = value / pow(10, std::fabs(scientific.Mantissa));
+
+    return scientific.ToDouble();
+}
+
 void AlignPair(double &min, double &max, long multiple){
-    ScientificDouble scientific_min(min);
-    ScientificDouble scientific_max(max);
-
-    max = scientific_max.Exponent * pow(10, std::fabs(scientific_max.Mantissa));
-    min = scientific_min.Exponent * pow(10, std::fabs(scientific_min.Mantissa));
-    
-    auto min_power = pow(10, std::fabs(scientific_min.Mantissa) == 0 ? 0 : std::fabs(scientific_min.Mantissa)-1);
-
-    min = (long(min/min_power) - (multiple - long(std::fabs(min)/min_power)%multiple)%multiple) * min_power;
-    
-    auto max_power = pow(10, std::fabs(scientific_max.Mantissa) == 0 ? 0 : std::fabs(scientific_max.Mantissa)-1);
-
-    max = (long(max/max_power) + (multiple - long(std::fabs(max)/max_power)%multiple)%multiple) * max_power;
-
-    scientific_min.Exponent = min / pow(10, std::fabs(scientific_min.Mantissa));
-    scientific_max.Exponent = max / pow(10, std::fabs(scientific_max.Mantissa));
-
-    min = scientific_min.ToDouble();
-    max = scientific_max.ToDouble();
+    min = AlignTo(min, multiple, false);
+    max = AlignTo(max, multiple, true);
 }
 
 }//namespace Utils::
