@@ -349,6 +349,15 @@ std::string Shorten(double n){
     ss << std::setw(3 + (postfix == 0)) << value.ToDouble() << postfix;
     return ss.str();
 }
+double RoundTo(double number, double value, bool up){
+    double correction = 1;
+
+    ScientificDouble scientific(number);
+    if(scientific.Mantissa < 0){
+        correction = pow(10, std::fabs(scientific.Mantissa)+1);
+    }
+    return (std::floor((number*correction)/value) + up)*value / correction;
+}
 
 double AlignTo(double value, long multiple, bool up){
     ScientificDouble scientific(value);
@@ -365,8 +374,37 @@ double AlignTo(double value, long multiple, bool up){
 }
 
 void AlignPair(double &min, double &max, long multiple){
-    min = AlignTo(min, multiple, false);
-    max = AlignTo(max, multiple, true);
+    // we do this because zero's mantissa equals zero
+    constexpr double Eps = 0.0000001;
+    if(std::fabs(min) < Eps){
+        max = AlignTo(max, multiple, true);
+        return;
+    }
+
+    if(std::fabs(max) < Eps){
+        min = AlignTo(min, multiple, false);
+        return;
+    }
+
+    if(std::fabs(max) > std::fabs(min)){
+        ScientificDouble s_max(max);
+
+        auto power = pow(10, std::max(std::fabs(s_max.Mantissa)-1,0.0));
+
+        max = AlignTo(max, multiple, true);
+        min = RoundTo(min, multiple * power, false);
+    }else if(std::fabs(max) < std::fabs(min)){
+        ScientificDouble s_min(min);
+
+        auto power = pow(10, std::max(std::fabs(s_min.Mantissa)-1,0.0));
+
+        min = AlignTo(min, multiple, false);
+        max = RoundTo(max, multiple * power, true);
+    }else{
+        max = AlignTo(max, multiple, true);
+        min = AlignTo(min, multiple, false);
+    }
+
 }
 
 }//namespace Utils::
@@ -389,7 +427,6 @@ struct PlotConfig{
     Pixel BackgroundColor;
     Pixel TextColor;
     size_t LineWidth;
-    float MarkerRadius;
     size_t MarginX;
     size_t MarginY;
     size_t PlotSizeX;
@@ -399,26 +436,6 @@ struct PlotConfig{
     float XFontMargin;
     float YFontMargin;
 };
-
-PlotLimits FindLimits(TraceData array){
-    PlotLimits result = {
-        std::numeric_limits<double>::max(),
-        std::numeric_limits<double>::max(),
-        std::numeric_limits<double>::min(),
-        std::numeric_limits<double>::min()
-    };
-    for(size_t i = 0; i<array.Count; i++){
-        if(array.x[i] < result.MinX)
-            result.MinX = array.x[i];
-        if(array.y[i] < result.MinY)
-            result.MinY = array.y[i];    
-        if(array.x[i] > result.MaxX)
-            result.MaxX = array.x[i];    
-        if(array.y[i] > result.MaxY)
-            result.MaxY = array.y[i];    
-    }
-    return result;
-}
 
 inline TracePoint ClampToPlotSize(const PlotConfig &config, TracePoint point){
     return {
@@ -483,7 +500,6 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     config.BackgroundColor = Color::White;
     config.TextColor       = {80, 80, 80, 255};
     config.LineWidth       = 1;
-    config.MarkerRadius    = 6;
     config.MarginX         = image_width * 0.1;
     config.MarginY         = image_height * 0.1;
     config.PlotSizeX       = image_width - config.MarginX * 2;
@@ -499,20 +515,23 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     Rasterizer::DrawString(background, config.TextColor, graph_name, config.TitleFontSize, config.MarginX, background.Height() - config.MarginY*0.7);
 
 
-    auto dx = (config.LimitsAligned.MaxX - config.LimitsAligned.MinX) / config.Segments;
-    for(auto i = config.LimitsAligned.MinX; i<=config.LimitsAligned.MaxX; i+=dx){
+    PlotLimits iteration_limits = config.LimitsAligned;
+
+    auto dx = (iteration_limits.MaxX - iteration_limits.MinX) / config.Segments;
+    for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=dx){
         TracePoint cross = ClampToPlotSize(config, {i, 0});
         Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
         Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX + cross.x - config.AxisFontSize/2, config.MarginY - config.YFontMargin);
     }
 
-    auto dy = (config.LimitsAligned.MaxY - config.LimitsAligned.MinY) / config.Segments;
-    for(auto i = config.LimitsAligned.MinY; i<=config.LimitsAligned.MaxY; i+=dy){
+    auto dy = (iteration_limits.MaxY - iteration_limits.MinY) / config.Segments;
+    for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=dy){
         TracePoint cross = ClampToPlotSize(config, {0, i});
 
         Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
         Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX - config.XFontMargin, config.MarginY + cross.y - config.AxisFontSize / 4);
     }
+    std::cout << "Dx: " << dx << " Dy: " << dy << std::endl;
 
     PaletteGenerator colors;    
     Image trace(config.PlotSizeX, config.PlotSizeY, {255, 255, 255, 0});
