@@ -104,8 +104,6 @@ public:
     inline size_t Height()const{ return m_Height; }
 
     inline Pixel &Get(size_t x, size_t y){
-        assert(x < m_Width);
-        assert(y < m_Height);
         y = m_Height - 1 - y;
         return *(m_Pixels + m_Width * y + x);
     }
@@ -115,7 +113,8 @@ public:
     }
 
     inline void DrawPixel(const Pixel &pixel, size_t x, size_t y){
-        Get(x, y) = pixel;
+        if(x < m_Width && y < m_Height)
+            Get(x, y) = pixel;
     }
 
     inline void BlendPixel(const Pixel &src, size_t x, size_t y){
