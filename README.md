@@ -17,7 +17,8 @@ P.S. It is better not to open font.cpp :-)
 using namespace libplot;
 
 int main(){
-    //Instead of regular array you can use any array-like data structures including std::vector, std::array and others
+    // Instead of regular array you can use any array-like data structures 
+    // including std::vector, std::array and others
     double x[] = {0, 1, 2, 3, 4,  5};
     double y[] = {0, 1, 4, 9, 16, 25};
 
