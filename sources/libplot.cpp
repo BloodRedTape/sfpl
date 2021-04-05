@@ -530,7 +530,6 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
         Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX - config.XFontMargin, config.MarginY + cross.y - config.AxisFontSize / 4);
     }
-    std::cout << "Dx: " << dx << " Dy: " << dy << std::endl;
 
     PaletteGenerator colors;    
     Image trace(config.PlotSizeX, config.PlotSizeY, {255, 255, 255, 0});
