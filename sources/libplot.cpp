@@ -124,7 +124,7 @@ struct Image{
 };
 
 struct Rasterizer{
-    static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y);
+    static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y);
 
     static void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
 
@@ -206,14 +206,15 @@ bool Image::Write(const char *filepath){
     return true;
 }
 
-void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y){
+void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y){
     for(float i = -radius; i <= radius; ++i){
-        float res = std::sqrt(float(radius * radius - i*i));
+        float res = std::sqrt(radius * radius - i*i);
         for(float j = -res; j <= res; ++j){
+            float pixel_distance = (radius - std::sqrt(i*i + j*j))/radius;
             size_t f_x = i+x;
             size_t f_y = j+y;
             if(f_x < image.Width && f_y < image.Height)
-                image.Get(f_x, f_y) = color;
+                image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(255*pixel_distance)}, f_x, f_y);
         }
     }
 }
@@ -231,15 +232,15 @@ void Rasterizer::DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, 
 
     int side = dx > 0 ? 1 : -1;
 
-    auto line = [k](size_t x) -> size_t{
+    auto line = [k](float x) -> float{
         return k*x;
     };
 
     size_t y_lim = y1-y0;
-    for(long x = 0;x <= llabs(dx); x += 1){
-        size_t y = line(x);
-        size_t y_max = line(x + 1);
-        for(;(y < y_max && y <= y_lim) || y == y_max; ++y)
+    for(float x = 0;x <= std::abs(dx); x += 0.5){
+        float y = line(x);
+        float y_max = line(x + 0.5);
+        for(;(y < y_max && y <= y_lim) || std::fabs(y_max-y) < 0.00001; y+=1)
             DrawOpaquePoint(image, pixel, width, x0 + x*side, y0 + y);
     }
 }
@@ -517,7 +518,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     config.TintColor       = {245, 252, 237, 255};
     config.BackgroundColor = Color::White;
     config.TextColor       = {80, 80, 80, 255};
-    config.LineWidth       = 1;
+    config.LineWidth       = 2;
     config.MarginX         = image_width * 0.1;
     config.MarginY         = image_height * 0.1;
     config.PlotSizeX       = image_width - config.MarginX * 2;
@@ -544,7 +545,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         TracePoint cross = ClampToPlotSize(config, {i, 0});
 
         auto label = Utils::Shorten(i);
-        Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
+        Rasterizer::DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, 1, image_height - config.MarginY*2);
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
     }
 
@@ -552,7 +553,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         TracePoint cross = ClampToPlotSize(config, {0, i});
 
         auto label = Utils::Shorten(i);
-        Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
+        Rasterizer::DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX*2, 1);
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
     }
 
