@@ -1,6 +1,5 @@
-#include <cstring>
 #include <string>
-#include <sstream>
+#include <cstring>
 #include <iostream>
 #include <iomanip>
 #include <assert.h>
@@ -54,11 +53,6 @@ extern "C" int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, i
 extern unsigned char opensans_regular[];
 
 namespace libplot{
-
-enum class Error{
-    None = 0,
-    Failure
-};
 
 struct Pixel{
     unsigned char Red   = 0;
@@ -126,15 +120,13 @@ struct Image{
 
     void Fill(const Pixel &pixel);
 
-    Error Write(const char *filepath);
+    bool Write(const char *filepath);
 };
 
 struct Rasterizer{
     static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y);
 
     static void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
-
-    static void DrawRect(Image &image, const Pixel &pixel, size_t x, size_t y, size_t width, size_t height);
 
     static void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x, size_t y, size_t width, size_t height);
 
@@ -196,7 +188,7 @@ void Image::Fill(const Pixel &pixel){
         Pixels[i] = pixel;
 }
 
-Error Image::Write(const char *filepath){
+bool Image::Write(const char *filepath){
     std::string str(filepath);
     std::string extension(&str[str.find_last_of('.') + 1]);
 
@@ -208,10 +200,10 @@ Error Image::Write(const char *filepath){
         stbi_write_tga(filepath, Width, Height, 4, Pixels);
     }else{
         std::cerr << "Error: Unknown image extension of '" << filepath << "'\n";
-        return Error::Failure;
+        return false;
     }
 
-    return Error::None;
+    return true;
 }
 
 void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y){
@@ -251,20 +243,12 @@ void Rasterizer::DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, 
     }
 }
 
-void Rasterizer::DrawRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
-    for(size_t j = y0; j<=height + y0; ++j)
-    for(size_t i = x0; i<=width + x0;  ++i)
-        image.BlendPixel(pixel, i, j);
-}
-
 void Rasterizer::DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
-    y0 = image.Height - 1 - y0 - height;
-    auto x_limit = std::min(image.Height, x0 + width);
-    auto y_limit = std::min(image.Width, y0 + height);
-
-    for(size_t j = y0; j<y_limit; ++j)
-    for(size_t i = x0; i<x_limit; ++i)
-        image.Pixels[j * image.Width + i] = pixel;
+    auto x_limit = std::min(image.Width, width + x0);
+    auto y_limit = std::min(image.Height, height + y0);
+    for(size_t j = y0; j<=y_limit; ++j)
+    for(size_t i = x0; i<=x_limit; ++i)
+        image.Get(i, j) = pixel;
 }
 
 struct FontInfo{
@@ -519,7 +503,7 @@ PlotLimits Align(PlotLimits limits, long multiple){
     return limits;
 }
 
-void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
+bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
 #ifndef NDEBUG
     assert(traces);
     assert(traces_count);
@@ -529,8 +513,7 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
     PlotConfig config;
     config.Segments        = 5;
-    config.Limits          = FindArrayLimits(traces, traces_count);
-    config.LimitsAligned   = Align(config.Limits, config.Segments);
+    config.LimitsAligned   = Align(FindArrayLimits(traces, traces_count), config.Segments);
     config.TintColor       = {245, 252, 237, 255};
     config.BackgroundColor = Color::White;
     config.TextColor       = {80, 80, 80, 255};
@@ -589,7 +572,7 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         Rasterizer::DrawString(background, color, traces[i].TraceName, config.AxisFontSize, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
     }
 
-    background.Write(outfilename);
+    return background.Write(outfilename);
 }
 
 }//namespace libplot
