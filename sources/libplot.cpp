@@ -235,10 +235,11 @@ void Rasterizer::DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, 
         return k*x;
     };
 
+    size_t y_lim = y1-y0;
     for(long x = 0;x <= llabs(dx); x += 1){
         size_t y = line(x);
         size_t y_max = line(x + 1);
-        for(;y < y_max || y == y_max; ++y)
+        for(;(y < y_max && y <= y_lim) || y == y_max; ++y)
             DrawOpaquePoint(image, pixel, width, x0 + x*side, y0 + y);
     }
 }
@@ -452,7 +453,6 @@ struct PlotLimits{
 
 struct PlotConfig{
     long Segments;
-    PlotLimits Limits;
     PlotLimits LimitsAligned;
     Pixel TintColor;
     Pixel BackgroundColor;
