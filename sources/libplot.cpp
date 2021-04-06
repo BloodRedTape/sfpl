@@ -87,25 +87,22 @@ public:
     Pixel NextColor();
 };
 
-class Image{
-private:
-    Pixel *m_Pixels;
-    size_t m_Width;
-    size_t m_Height;
-public:
-    Image(size_t width, size_t height, const Pixel &fill_color = {0, 0, 0, 255});
+struct Image{
+    Pixel *const Pixels;
+    const size_t Width;
+    const size_t Height;
+
+    Image(size_t width, size_t height);
+
+    Image(size_t width, size_t height, const Pixel &fill_color);
 
     Image(const Image &other) = delete;
 
     ~Image();
 
-    inline size_t Width()const{ return m_Width; }
-
-    inline size_t Height()const{ return m_Height; }
-
     inline Pixel &Get(size_t x, size_t y){
-        y = m_Height - 1 - y;
-        return *(m_Pixels + m_Width * y + x);
+        y = Height - 1 - y;
+        return *(Pixels + Width * y + x);
     }
 
     inline const Pixel &Get(size_t x, size_t y)const{
@@ -113,12 +110,12 @@ public:
     }
 
     inline void DrawPixel(const Pixel &pixel, size_t x, size_t y){
-        if(x < m_Width && y < m_Height)
+        if(x < Width && y < Height)
             Get(x, y) = pixel;
     }
 
     inline void BlendPixel(const Pixel &src, size_t x, size_t y){
-        if(x < m_Width && y < m_Height){
+        if(x < Width && y < Height){
             auto& dst = Get(x, y);
             dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
             dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
@@ -129,17 +126,17 @@ public:
 
     void Fill(const Pixel &pixel);
 
-    void DrawImage(const Image &other, size_t x, size_t y);
-
     Error Write(const char *filepath);
 };
 
 struct Rasterizer{
-    static void DrawPoint(Image &image, const Pixel &color, float radius, size_t x, size_t y);
+    static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y);
 
-    static void DrawLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
+    static void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
 
     static void DrawRect(Image &image, const Pixel &pixel, size_t x, size_t y, size_t width, size_t height);
+
+    static void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x, size_t y, size_t width, size_t height);
 
     static void DrawString(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x, size_t y);
 };
@@ -176,30 +173,27 @@ Pixel PaletteGenerator::NextColor(){
     return Colors[m_Counter++ % (sizeof(Colors)/sizeof(Pixel))];
 }
 
+Image::Image(size_t width, size_t height):
+    Pixels((Pixel*)std::malloc(sizeof(Pixel) * width * height)),
+    Width(width),
+    Height(height)
+{}
+
 Image::Image(size_t width, size_t height, const Pixel &fill_color):
-    m_Width(width),
-    m_Height(height)
+    Image(width, height)
 {
-    m_Pixels = new Pixel[m_Height * m_Width];
     Fill(fill_color);
 }
 
 Image::~Image(){
-    delete[] m_Pixels;
+    std::free(Pixels);
 }
+
 
 void Image::Fill(const Pixel &pixel){
-    for(size_t j = 0; j<m_Height; ++j)
-    for(size_t i = 0; i<m_Width; ++i){
-        DrawPixel(pixel, i, j);
-    }
-}
-
-void Image::DrawImage(const Image &other, size_t x, size_t y){
-    for(size_t j = 0; j < other.Height(); ++j)
-    for(size_t i = 0; i < other.Width();  ++i){
-        BlendPixel(other.Get(i,j), x + i, y + j);
-    }
+    size_t max = Width*Height;
+    for(size_t i = 0; i<max; ++i)
+        Pixels[i] = pixel;
 }
 
 Error Image::Write(const char *filepath){
@@ -207,11 +201,11 @@ Error Image::Write(const char *filepath){
     std::string extension(&str[str.find_last_of('.') + 1]);
 
     if(extension == "png"){
-        stbi_write_png(filepath, m_Width, m_Height, 4, m_Pixels, m_Width * 4);
+        stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
     }else if(extension == "jpg" || extension == "jpeg"){
-        stbi_write_jpg(filepath, m_Width, m_Height, 4, m_Pixels, m_Width * 4);
+        stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
     }else if(extension == "tga"){
-        stbi_write_tga(filepath, m_Width, m_Height, 4, m_Pixels);
+        stbi_write_tga(filepath, Width, Height, 4, Pixels);
     }else{
         std::cerr << "Error: Unknown image extension of '" << filepath << "'\n";
         return Error::Failure;
@@ -220,23 +214,19 @@ Error Image::Write(const char *filepath){
     return Error::None;
 }
 
-void Rasterizer::DrawPoint(Image &image, const Pixel &color, float radius, size_t x, size_t y){
-    auto circle = [radius](float x)->float{
-        return std::sqrt(float(radius * radius - x*x));
-    };
-
+void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y){
     for(float i = -radius; i <= radius; ++i){
-        float res = circle(i);
-        for(float j = -res; j <= res; j+=1){
+        float res = std::sqrt(float(radius * radius - i*i));
+        for(float j = -res; j <= res; ++j){
             size_t f_x = i+x;
             size_t f_y = j+y;
-            if(f_x < image.Width() && f_y < image.Height())
-                image.BlendPixel(color, f_x, f_y);
+            if(f_x < image.Width && f_y < image.Height)
+                image.Get(f_x, f_y) = color;
         }
     }
 }
 
-void Rasterizer::DrawLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
+void Rasterizer::DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
     if(y1 < y0){
         std::swap(y0, y1);
         std::swap(x0, x1);
@@ -257,7 +247,7 @@ void Rasterizer::DrawLine(Image &image, const Pixel &pixel, size_t width, size_t
         size_t y = line(x);
         size_t y_max = line(x + 1);
         for(;y < y_max || y == y_max; ++y)
-            DrawPoint(image, pixel, width, x0 + x*side, y0 + y);
+            DrawOpaquePoint(image, pixel, width, x0 + x*side, y0 + y);
     }
 }
 
@@ -265,6 +255,16 @@ void Rasterizer::DrawRect(Image &image, const Pixel &pixel, size_t x0, size_t y0
     for(size_t j = y0; j<=height + y0; ++j)
     for(size_t i = x0; i<=width + x0;  ++i)
         image.BlendPixel(pixel, i, j);
+}
+
+void Rasterizer::DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
+    y0 = image.Height - 1 - y0 - height;
+    auto x_limit = std::min(image.Height, x0 + width);
+    auto y_limit = std::min(image.Width, y0 + height);
+
+    for(size_t j = y0; j<y_limit; ++j)
+    for(size_t i = x0; i<x_limit; ++i)
+        image.Pixels[j * image.Width + i] = pixel;
 }
 
 struct FontInfo{
@@ -546,8 +546,9 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
     Image background(image_width, image_height, config.BackgroundColor);
 
-    Rasterizer::DrawRect(background, config.TintColor, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
-    Rasterizer::DrawString(background, config.TextColor, graph_name, config.TitleFontSize, config.MarginX, background.Height() - config.MarginY*0.7);
+    Rasterizer::DrawOpaqueRect(background, config.TintColor, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
+
+    Rasterizer::DrawString(background, config.TextColor, graph_name, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
 
 
     PlotLimits iteration_limits = config.LimitsAligned;
@@ -560,7 +561,7 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         TracePoint cross = ClampToPlotSize(config, {i, 0});
 
         auto label = Utils::Shorten(i);
-        Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
+        Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
     }
 
@@ -568,12 +569,11 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         TracePoint cross = ClampToPlotSize(config, {0, i});
 
         auto label = Utils::Shorten(i);
-        Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
+        Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
     }
 
-    PaletteGenerator colors;    
-    Image trace(config.PlotSizeX, config.PlotSizeY, {255, 255, 255, 0});
+    PaletteGenerator colors;
 
     for(size_t i = 0; i<traces_count; ++i){
         Pixel color = colors.NextColor();
@@ -581,15 +581,13 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
             TracePoint p0 = ClampToPlotSize(config, {traces[i].x[j], traces[i].y[j]});
             TracePoint p1 = ClampToPlotSize(config, {traces[i].x[j + 1], traces[i].y[j + 1]});
 
-            Rasterizer::DrawLine(trace, color, config.LineWidth, p0.x, p0.y, p1.x, p1.y);
+            Rasterizer::DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + p0.x, config.MarginY + p0.y, config.MarginX + p1.x, config.MarginY + p1.y);
         }
 
         TracePoint last_trace = ClampToPlotSize(config, {traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]});
 
         Rasterizer::DrawString(background, color, traces[i].TraceName, config.AxisFontSize, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
     }
-
-    background.DrawImage(trace, config.MarginX, config.MarginY);
 
     background.Write(outfilename);
 }
