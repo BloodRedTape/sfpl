@@ -317,6 +317,14 @@ struct ScientificDouble{
     }
 };
 
+long IntegerDigits(double number){
+    long i = 0;
+
+    for(; (long)number > 0; number/=10, ++i);
+
+    return i;
+}
+
 char PostfixTable[] = {
     0,
     'K',
@@ -358,12 +366,12 @@ double RoundTo(double number, double value, bool up){
     return (std::floor((number*correction)/value) + up)*value / correction;
 }
 
-double AlignTo(double value, long multiple, bool up){
+double AlignTo(double value, long multiple, bool up, long digits_count){
     ScientificDouble scientific(value);
     
     value = scientific.Exponent * pow(10, std::fabs(scientific.Mantissa));
 
-    auto power = pow(10, std::fabs(scientific.Mantissa) == 0 ? 0 : std::fabs(scientific.Mantissa)-1);
+    auto power = pow(10, digits_count);
 
     value = (long(value/power) - ((multiple - long(std::fabs(value)/power)%multiple)%multiple)*(long)pow(-1, up)) * power;
 
@@ -375,13 +383,16 @@ double AlignTo(double value, long multiple, bool up){
 void AlignPair(double &min, double &max, long multiple){
     // we do this because zero's mantissa equals zero
     constexpr double Eps = 0.0000001;
+
+    size_t digits_count = std::max(IntegerDigits(max-min)-2,0l);
+
     if(std::fabs(min) < Eps){
-        max = AlignTo(max, multiple, true);
+        max = AlignTo(max, multiple, true, digits_count);
         return;
     }
 
     if(std::fabs(max) < Eps){
-        min = AlignTo(min, multiple, false);
+        min = AlignTo(min, multiple, false, digits_count);
         return;
     }
 
@@ -390,18 +401,18 @@ void AlignPair(double &min, double &max, long multiple){
 
         auto power = pow(10, std::max(std::fabs(s_max.Mantissa)-1,0.0));
 
-        max = AlignTo(max, multiple, true);
+        max = AlignTo(max, multiple, true, digits_count);
         min = RoundTo(min, multiple * power, false);
     }else if(std::fabs(max) < std::fabs(min)){
         ScientificDouble s_min(min);
 
         auto power = pow(10, std::max(std::fabs(s_min.Mantissa)-1,0.0));
 
-        min = AlignTo(min, multiple, false);
+        min = AlignTo(min, multiple, false, digits_count);
         max = RoundTo(max, multiple * power, true);
     }else{
-        max = AlignTo(max, multiple, true);
-        min = AlignTo(min, multiple, false);
+        max = AlignTo(max, multiple, true, digits_count);
+        min = AlignTo(min, multiple, false, digits_count);
     }
 
 }
