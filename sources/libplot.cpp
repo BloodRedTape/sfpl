@@ -118,11 +118,13 @@ public:
     }
 
     inline void BlendPixel(const Pixel &src, size_t x, size_t y){
-        auto& dst = Get(x, y);
-        dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
-        dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
-        dst.Blue  = dst.Blue  * (1 - src.Alpha/255.f) + src.Blue  * (src.Alpha/255.f);
-        dst.Alpha = dst.Alpha * (1 - src.Alpha/255.f) + src.Alpha;
+        if(x < m_Width && y < m_Height){
+            auto& dst = Get(x, y);
+            dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
+            dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
+            dst.Blue  = dst.Blue  * (1 - src.Alpha/255.f) + src.Blue  * (src.Alpha/255.f);
+            dst.Alpha = dst.Alpha * (1 - src.Alpha/255.f) + src.Alpha;
+        }
     }
 
     void Fill(const Pixel &pixel);
