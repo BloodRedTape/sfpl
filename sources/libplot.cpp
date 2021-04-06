@@ -545,7 +545,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         TracePoint cross = ClampToPlotSize(config, {i, 0});
 
         auto label = Utils::Shorten(i);
-        Rasterizer::DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.LineWidth, image_height - config.MarginY*2);
+        Rasterizer::DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, 1, image_height - config.MarginY*2);
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
     }
 
@@ -553,7 +553,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         TracePoint cross = ClampToPlotSize(config, {0, i});
 
         auto label = Utils::Shorten(i);
-        Rasterizer::DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX*2, config.LineWidth);
+        Rasterizer::DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX*2, 1);
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
     }
 
