@@ -280,7 +280,7 @@ void Rasterizer::DrawString(Image &image, const Pixel &color, const char *string
     int offset = 0;
     for(size_t i = 0; i<strlen(string); ++i){
         if(string[i] == ' '){
-            offset += font_size * 0.2;
+            offset += font_size * 0.3;
             continue;
         }
 
@@ -338,22 +338,20 @@ char PostfixTable[] = {
 };
 
 std::string Shorten(double n){
+    constexpr size_t Precision = 12;
     char postfix = 0;
     ScientificDouble value(n);
 
     if(value.Mantissa > 0){
         postfix = PostfixTable[(size_t)value.Mantissa/3];
         value.Mantissa = size_t(value.Mantissa)%3;
-    }else{
-        if(value.Mantissa < -4){
-            value = ScientificDouble(0);
-        }
-        value.Exponent = std::floor(value.Exponent * 100)/100;
+    }else if(value.Mantissa < -8){
+        value = ScientificDouble(0);
     }
 
     std::stringstream ss;
 
-    ss << std::setw(3 + (postfix == 0)) << value.ToDouble() << postfix;
+    ss << std::setw(Precision + (postfix == 0)) << std::setprecision(Precision) << value.ToDouble() << postfix;
     return ss.str();
 }
 double RoundTo(double number, double value, bool up){
@@ -368,14 +366,16 @@ double RoundTo(double number, double value, bool up){
 
 double AlignTo(double value, long multiple, bool up, long digits_count){
     ScientificDouble scientific(value);
-    
-    value = scientific.Exponent * pow(10, std::fabs(scientific.Mantissa));
+
+    auto correction_power = pow(10, std::fabs(scientific.Mantissa));
+
+    value = scientific.Exponent * correction_power;
 
     auto power = pow(10, digits_count);
 
     value = (long(value/power) - ((multiple - long(std::fabs(value)/power)%multiple)%multiple)*(long)pow(-1, up)) * power;
 
-    scientific.Exponent = value / pow(10, std::fabs(scientific.Mantissa));
+    scientific.Exponent = value / correction_power;
 
     return scientific.ToDouble();
 }
