@@ -274,7 +274,26 @@ struct FontInfo{
     FontInfo(){
         if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0)))puts("Oh shit, stbtt can't init font");
     }
+
+    size_t GetStringLength(const char *string, size_t font_size);
 };
+
+size_t FontInfo::GetStringLength(const char *string, size_t font_size){
+    size_t length = 0;
+    for(size_t i = 0; i<strlen(string); ++i){
+        if(string[i] == ' '){
+            length += font_size * 0.3;
+            continue;
+        }
+
+        int width, height, xoffset, yoffset;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+
+        length += width + font_size * 0.03;
+        stbtt_FreeBitmap(bitmap, nullptr);
+    }
+    return length;
+}
 
 FontInfo default_font;
 
@@ -353,7 +372,7 @@ std::string Shorten(double n){
 
     std::stringstream ss;
 
-    ss << std::setw(Precision + (postfix == 0)) << std::setprecision(Precision) << value.ToDouble() << postfix;
+    ss << std::setprecision(Precision) << value.ToDouble() << postfix;
     return ss.str();
 }
 double RoundTo(double number, double value, bool up){
@@ -532,16 +551,19 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     auto dx = (iteration_limits.MaxX - iteration_limits.MinX) / config.Segments;
     for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=dx){
         TracePoint cross = ClampToPlotSize(config, {i, 0});
+
+        auto label = Utils::Shorten(i);
         Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
-        Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX + cross.x - config.AxisFontSize/2, config.MarginY - config.YFontMargin);
+        Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
     }
 
     auto dy = (iteration_limits.MaxY - iteration_limits.MinY) / config.Segments;
     for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=dy){
         TracePoint cross = ClampToPlotSize(config, {0, i});
 
+        auto label = Utils::Shorten(i);
         Rasterizer::DrawLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
-        Rasterizer::DrawString(background, config.TextColor, Utils::Shorten(i).c_str(), config.AxisFontSize, config.MarginX - config.XFontMargin, config.MarginY + cross.y - config.AxisFontSize / 4);
+        Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
     }
 
     PaletteGenerator colors;    
