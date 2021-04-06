@@ -272,7 +272,10 @@ struct FontInfo{
     unsigned char *FontBuffer = opensans_regular;
 
     FontInfo(){
-        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0)))puts("Oh shit, stbtt can't init font");
+        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
+            puts("[libplot][Error]: stbtt can't init font, terminating...");
+            exit(0);
+        }
     }
 
     size_t GetStringLength(const char *string, size_t font_size);
@@ -363,7 +366,7 @@ std::string Shorten(double n){
     char postfix = 0;
     ScientificDouble value(n);
 
-    if(value.Mantissa > 0){
+    if(value.Mantissa > 0 && value.Mantissa/3 < sizeof(PostfixTable)){
         postfix = PostfixTable[(size_t)value.Mantissa/3];
         value.Mantissa = size_t(value.Mantissa)%3;
     }else if(value.Mantissa < -8){
@@ -436,6 +439,19 @@ void AlignPair(double &min, double &max, long multiple){
         min = AlignTo(min, multiple, false, digits_count);
     }
 
+}
+
+double GetNiceStep(double distance, size_t segments){
+    constexpr size_t Begin = 5;
+    constexpr size_t End = 10;
+
+    for(size_t i = Begin; i<=End; ++i){
+        auto value = std::fabs(log10(distance / (i * segments)));
+        double integer;
+        if(std::modf(value, &integer) < 0.0000001 && value >= long(std::fabs(log10(distance)) - 1)) return distance/i;
+    }
+
+    return distance / Begin;
 }
 
 }//namespace Utils::
@@ -547,9 +563,12 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
 
     PlotLimits iteration_limits = config.LimitsAligned;
+    double x_distance = iteration_limits.MaxX - iteration_limits.MinX;
+    double y_distance = iteration_limits.MaxY - iteration_limits.MinY;
+    auto x_step = Utils::GetNiceStep(x_distance, config.Segments);
+    auto y_step = Utils::GetNiceStep(y_distance, config.Segments);
 
-    auto dx = (iteration_limits.MaxX - iteration_limits.MinX) / config.Segments;
-    for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=dx){
+    for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=x_step){
         TracePoint cross = ClampToPlotSize(config, {i, 0});
 
         auto label = Utils::Shorten(i);
@@ -557,8 +576,7 @@ void PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
     }
 
-    auto dy = (iteration_limits.MaxY - iteration_limits.MinY) / config.Segments;
-    for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=dy){
+    for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=y_step){
         TracePoint cross = ClampToPlotSize(config, {0, i});
 
         auto label = Utils::Shorten(i);
