@@ -514,20 +514,8 @@ PlotLimits FindArrayLimits(const TraceData traces[], size_t traces_count){
 }
 
 PlotLimits Align(PlotLimits limits, long multiple){
-    std::cout << "Before\n" << std::fixed;
-    std::cout << "MinX: " << limits.MinX << std::endl;
-    std::cout << "MinY: " << limits.MinY << std::endl;
-    std::cout << "ManX: " << limits.MaxX << std::endl;
-    std::cout << "ManY: " << limits.MaxY << std::endl;
-
     Utils::AlignPair(limits.MinX, limits.MaxX, multiple);
     Utils::AlignPair(limits.MinY, limits.MaxY, multiple);
-
-    std::cout << "After\n";
-    std::cout << "MinX: " << limits.MinX << std::endl;
-    std::cout << "MinY: " << limits.MinY << std::endl;
-    std::cout << "ManX: " << limits.MaxX << std::endl;
-    std::cout << "ManY: " << limits.MaxY << std::endl;
     return limits;
 }
 
