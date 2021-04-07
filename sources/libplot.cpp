@@ -7,8 +7,10 @@
 #include <cmath>
 #include "libplot.hpp"
 
+extern unsigned char opensans_regular[];
 
 //stbi prototypes
+namespace {
 
 typedef struct
 {
@@ -50,28 +52,46 @@ extern "C" void stbtt_FreeBitmap(unsigned char *bitmap, void *userdata);
 extern "C" float stbtt_ScaleForPixelHeight(const stbtt_fontinfo *info, float pixels);
 extern "C" int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, int offset);
 
-extern unsigned char opensans_regular[];
+struct FontInfo{
+    stbtt_fontinfo STBTTInfo;
+    unsigned char *FontBuffer = opensans_regular;
 
-namespace libplot{
+    FontInfo(){
+        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
+            std::cerr << "[libplot]: Can't init font, it is probably broken. Consider redownloading font.cpp\n";
+            std::cerr << "[libplot]: library can't proceed\n";
+            std::cerr << "[libplot]: terminating...\n";
+            exit(0);
+        }
+    }
+
+    size_t GetStringLength(const char *string, size_t font_size);
+};
+
+FontInfo default_font;
+
+size_t FontInfo::GetStringLength(const char *string, size_t font_size){
+    size_t length = 0;
+    for(size_t i = 0; i<strlen(string); ++i){
+        if(string[i] == ' '){
+            length += font_size * 0.3;
+            continue;
+        }
+
+        int width, height, xoffset, yoffset;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+
+        length += width + font_size * 0.03;
+        stbtt_FreeBitmap(bitmap, nullptr);
+    }
+    return length;
+}
 
 struct Pixel{
     unsigned char Red   = 0;
     unsigned char Green = 0;
     unsigned char Blue  = 0;
     unsigned char Alpha = 255;
-
-};
-
-struct Color{
-    static constexpr Pixel White   = {255, 255, 255, 255};
-    static constexpr Pixel Black   = {0,   0,   0,   255};
-    static constexpr Pixel Red     = {255, 0,   0,   255};
-    static constexpr Pixel Green   = {0,   255, 0,   255};
-    static constexpr Pixel Blue    = {0,   0,   255, 255};
-    static constexpr Pixel Yellow  = {255, 255, 0,   255};
-    static constexpr Pixel Cyan    = {0,   255, 255, 255};
-    static constexpr Pixel Magenta = {255, 0,   255, 255};
-    static constexpr Pixel Orange  = {255, 128, 0,   255};
 };
 
 class PaletteGenerator{
@@ -80,6 +100,20 @@ private:
 public:
     Pixel NextColor();
 };
+
+Pixel Colors[]={
+    {51, 234, 66, 255},
+    {51, 118, 234, 255},
+    {234, 51, 51, 255},
+    {234, 155, 51, 255},
+    {0, 0, 0, 255},
+    {234, 51, 143, 255},
+    {51, 213, 234, 255}
+};
+
+Pixel PaletteGenerator::NextColor(){
+    return Colors[m_Counter++ % (sizeof(Colors)/sizeof(Pixel))];
+}
 
 struct Image{
     Pixel *const Pixels;
@@ -91,6 +125,8 @@ struct Image{
     Image(size_t width, size_t height, const Pixel &fill_color);
 
     Image(const Image &other) = delete;
+
+    Image &operator=(const Image &other) = delete;
 
     ~Image();
 
@@ -122,48 +158,6 @@ struct Image{
 
     bool Write(const char *filepath);
 };
-
-struct Rasterizer{
-    static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y);
-
-    static void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
-
-    static void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x, size_t y, size_t width, size_t height);
-
-    static void DrawString(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x, size_t y);
-};
-
-namespace Utils{
-
-std::string Shorten(double num);
-
-}//namespace Utils::
-
-
-constexpr Pixel Color::White;
-constexpr Pixel Color::Black;
-constexpr Pixel Color::Red;
-constexpr Pixel Color::Green;
-constexpr Pixel Color::Blue;
-constexpr Pixel Color::Yellow;
-constexpr Pixel Color::Cyan;
-constexpr Pixel Color::Magenta;
-constexpr Pixel Color::Orange;
-
-
-Pixel Colors[]={
-    {51, 234, 66, 255},
-    {51, 118, 234, 255},
-    {234, 51, 51, 255},
-    {234, 155, 51, 255},
-    {0, 0, 0, 255},
-    {234, 51, 143, 255},
-    {51, 213, 234, 255}
-};
-
-Pixel PaletteGenerator::NextColor(){
-    return Colors[m_Counter++ % (sizeof(Colors)/sizeof(Pixel))];
-}
 
 Image::Image(size_t width, size_t height):
     Pixels((Pixel*)std::malloc(sizeof(Pixel) * width * height)),
@@ -206,7 +200,7 @@ bool Image::Write(const char *filepath){
     return true;
 }
 
-void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y){
+void DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y){
     for(float i = -radius; i <= radius; ++i){
         float res = std::sqrt(float(radius * radius - i*i));
         for(float j = -res; j <= res; ++j){
@@ -218,7 +212,7 @@ void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius,
     }
 }
 
-void Rasterizer::DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
+void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
     if(y1 < y0){
         std::swap(y0, y1);
         std::swap(x0, x1);
@@ -244,7 +238,7 @@ void Rasterizer::DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, 
     }
 }
 
-void Rasterizer::DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
+void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
     auto x_limit = std::min(image.Width, width + x0);
     auto y_limit = std::min(image.Height, height + y0);
     for(size_t j = y0; j<=y_limit; ++j)
@@ -252,40 +246,7 @@ void Rasterizer::DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, siz
         image.Get(i, j) = pixel;
 }
 
-struct FontInfo{
-    stbtt_fontinfo STBTTInfo;
-    unsigned char *FontBuffer = opensans_regular;
-
-    FontInfo(){
-        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
-            puts("[libplot][Error]: stbtt can't init font, terminating...");
-            exit(0);
-        }
-    }
-
-    size_t GetStringLength(const char *string, size_t font_size);
-};
-
-size_t FontInfo::GetStringLength(const char *string, size_t font_size){
-    size_t length = 0;
-    for(size_t i = 0; i<strlen(string); ++i){
-        if(string[i] == ' '){
-            length += font_size * 0.3;
-            continue;
-        }
-
-        int width, height, xoffset, yoffset;
-        unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
-
-        length += width + font_size * 0.03;
-        stbtt_FreeBitmap(bitmap, nullptr);
-    }
-    return length;
-}
-
-FontInfo default_font;
-
-void Rasterizer::DrawString(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
+void DrawString(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
     int offset = 0;
     for(size_t i = 0; i<strlen(string); ++i){
         if(string[i] == ' '){
@@ -454,8 +415,8 @@ struct PlotLimits{
 struct PlotConfig{
     size_t Segments;
     PlotLimits LimitsAligned;
-    double LenX;
-    double LenY;
+    double DataRangeX;
+    double DataRangeY;
     Pixel TintColor;
     Pixel BackgroundColor;
     Pixel TextColor;
@@ -470,14 +431,14 @@ struct PlotConfig{
     float YFontMargin;
 };
 
-inline TracePoint ClampToPlotSize(const PlotConfig &config, double x, double y){
+TracePoint MapToPlotCoords(const PlotConfig &config, double x, double y){
     return {
-        config.PlotSizeX * ((x - config.LimitsAligned.MinX)/config.LenX),
-        config.PlotSizeY * ((y - config.LimitsAligned.MinY)/config.LenY)
+        config.PlotSizeX * ((x - config.LimitsAligned.MinX)/config.DataRangeX),
+        config.PlotSizeY * ((y - config.LimitsAligned.MinY)/config.DataRangeY)
     };
 }
 
-PlotLimits FindArrayLimits(const TraceData traces[], size_t traces_count){
+PlotLimits FindArrayLimits(const ::libplot::TraceData traces[], size_t traces_count){
     PlotLimits result = {
         std::numeric_limits<double>::max(),
         std::numeric_limits<double>::max(),
@@ -509,21 +470,103 @@ double Slope(TracePoint p0, TracePoint p1){
     return (p1.y-p0.y)/(p1.x-p0.x);
 }
 
-bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
-#ifndef NDEBUG
+void DrawPlotTitle(Image &background, const PlotConfig &config, const char *title){
+    DrawString(background, config.TextColor, title, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
+}
+
+void DrawPlotBackground(Image &background, const PlotConfig &config, Pixel color){
+    DrawOpaqueRect(background, color, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
+}
+
+void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title){
+    DrawPlotTitle(background, config, title);
+
+    DrawPlotBackground(background, config, config.TintColor);
+
+    const PlotLimits &iteration_limits = config.LimitsAligned;
+
+    auto x_step = Utils::GetNiceStep(config.DataRangeX, config.Segments);
+    auto y_step = Utils::GetNiceStep(config.DataRangeY, config.Segments);
+
+    for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=x_step){
+        TracePoint cross = MapToPlotCoords(config, i, 0);
+
+        std::string label = Utils::Shorten(i);
+        DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, background.Height - config.MarginY);
+        DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
+    }
+
+    for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=y_step){
+        TracePoint cross = MapToPlotCoords(config, 0, i);
+
+        std::string label = Utils::Shorten(i);
+        DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, background.Width - config.MarginX, config.MarginY + cross.y);
+        DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
+    }
+}
+
+void DrawPlotLine(Image &background, const PlotConfig &config, TracePoint p0, TracePoint p1, Pixel color){
+    DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
+}
+
+void DrawTraceName(Image &background, const PlotConfig &config, const ::libplot::TraceData &trace, Pixel color){
+    TracePoint last_trace = MapToPlotCoords(config, trace.x[trace.Count - 1], trace.y[trace.Count - 1]);
+
+    DrawString(background, color, trace.TraceName, config.AxisFontSize, background.Width - config.MarginX*0.9, last_trace.y + config.MarginY);
+}
+
+void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplot::TraceData traces[], size_t traces_count){
+    PaletteGenerator colors;
+
+    for(size_t i = 0; i<traces_count; ++i){
+        Pixel color = colors.NextColor();
+        
+        TracePoint p0 = MapToPlotCoords(config, traces[i].x[0], traces[i].y[0]);
+
+        for(size_t j = 0; j < traces[i].Count - 1;++j){
+            TracePoint p1 = MapToPlotCoords(config, traces[i].x[j + 1], traces[i].y[j + 1]); 
+
+            auto initial_slope = Slope(p0, p1);
+
+            for(size_t k = j+2; k<traces[i].Count - 1; ++k){
+                TracePoint potential = MapToPlotCoords(config, traces[i].x[k], traces[i].y[k]);
+
+                if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
+                    p1 = potential;
+                    ++j;
+                }else break;
+            }
+
+            DrawPlotLine(background, config, p0, p1, color);
+
+            p0 = p1;
+        }
+        DrawTraceName(background, config, traces[i], color);
+    }
+}
+
+}//namespace anonymous::
+
+namespace libplot{
+
+bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
     assert(traces);
     assert(traces_count);
-    for(size_t i = 0; i<traces_count; ++i)
-        assert(traces[i].Count > 1);
-#endif
+
+    for(size_t i = 0; i<traces_count; ++i){
+        if(traces[i].Count < 2){
+            std::cerr << "[libplot]: Can't build a plot using less than two points\n";
+            return false;
+        }
+    }
 
     PlotConfig config;
     config.Segments        = 5;
     config.LimitsAligned   = Align(FindArrayLimits(traces, traces_count), config.Segments);
-    config.LenX            = config.LimitsAligned.MaxX - config.LimitsAligned.MinX;
-    config.LenY            = config.LimitsAligned.MaxY - config.LimitsAligned.MinY;
+    config.DataRangeX      = config.LimitsAligned.MaxX - config.LimitsAligned.MinX;
+    config.DataRangeY      = config.LimitsAligned.MaxY - config.LimitsAligned.MinY;
     config.TintColor       = {245, 252, 237, 255};
-    config.BackgroundColor = Color::White;
+    config.BackgroundColor = {255, 255, 255, 255};
     config.TextColor       = {80, 80, 80, 255};
     config.LineWidth       = 1;
     config.MarginX         = image_width * 0.1;
@@ -535,65 +578,18 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     config.XFontMargin     = config.AxisFontSize * 2;
     config.YFontMargin     = config.AxisFontSize* 1.05;
 
+    constexpr float MinTraceDataRange = 0.0001;
+
+    if(std::abs(config.DataRangeX) < MinTraceDataRange || std::abs(config.DataRangeY) < MinTraceDataRange){
+        std::cerr << "[libplot]: can't build a plot, trace data range approaches zero\n";
+        return false;
+    }
+
     Image background(image_width, image_height, config.BackgroundColor);
 
-    Rasterizer::DrawOpaqueRect(background, config.TintColor, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
+    DrawPlotFrame(background, config, title);
 
-    Rasterizer::DrawString(background, config.TextColor, graph_name, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
-
-
-    PlotLimits iteration_limits = config.LimitsAligned;
-    double x_distance = iteration_limits.MaxX - iteration_limits.MinX;
-    double y_distance = iteration_limits.MaxY - iteration_limits.MinY;
-    auto x_step = Utils::GetNiceStep(x_distance, config.Segments);
-    auto y_step = Utils::GetNiceStep(y_distance, config.Segments);
-
-    for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=x_step){
-        TracePoint cross = ClampToPlotSize(config, i, 0);
-
-        auto label = Utils::Shorten(i);
-        Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
-        Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
-    }
-
-    for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=y_step){
-        TracePoint cross = ClampToPlotSize(config, 0, i);
-
-        auto label = Utils::Shorten(i);
-        Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
-        Rasterizer::DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
-    }
-
-    PaletteGenerator colors;
-
-    for(size_t i = 0; i<traces_count; ++i){
-        Pixel color = colors.NextColor();
-        
-        TracePoint p0 = ClampToPlotSize(config, traces[i].x[0], traces[i].y[0]);
-
-        for(size_t j = 0; j < traces[i].Count - 1;++j){
-            TracePoint p1 = ClampToPlotSize(config, traces[i].x[j + 1], traces[i].y[j + 1]); 
-
-            auto initial_slope = Slope(p0, p1);
-
-            for(size_t k = j+2; k<traces[i].Count - 1; ++k){
-                TracePoint potential = ClampToPlotSize(config, traces[i].x[k], traces[i].y[k]);
-
-                if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
-                    p1 = potential;
-                    ++j;
-                }else break;
-            }
-
-            Rasterizer::DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
-
-            p0 = p1;
-        }
-
-        TracePoint last_trace = ClampToPlotSize(config, traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]);
-
-        Rasterizer::DrawString(background, color, traces[i].TraceName, config.AxisFontSize, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
-    }
+    DrawPlotContent(background, config, traces, traces_count);
 
     return background.Write(outfilename);
 }
@@ -601,6 +597,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 }//namespace libplot
 
 
+namespace {
 
 #define STB_TRUETYPE_IMPLEMENTATION
 
@@ -7284,3 +7281,4 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
 */
 
+}//namespace anonymous::
