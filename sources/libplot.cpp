@@ -568,8 +568,10 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
 
     for(size_t i = 0; i<traces_count; ++i){
         Pixel color = colors.NextColor();
+        
+        TracePoint p0 = ClampToPlotSize(config, traces[i].x[0], traces[i].y[0]);
+
         for(size_t j = 0; j < traces[i].Count - 1;++j){
-            TracePoint p0 = ClampToPlotSize(config, traces[i].x[j], traces[i].y[j]);
             TracePoint p1 = ClampToPlotSize(config, traces[i].x[j + 1], traces[i].y[j + 1]); 
 
             auto initial_slope = Slope(p0, p1);
@@ -584,6 +586,8 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
             }
 
             Rasterizer::DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
+
+            p0 = p1;
         }
 
         TracePoint last_trace = ClampToPlotSize(config, traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]);
