@@ -452,26 +452,28 @@ struct PlotLimits{
 };
 
 struct PlotConfig{
-    long Segments;
+    size_t Segments;
     PlotLimits LimitsAligned;
+    double LenX;
+    double LenY;
     Pixel TintColor;
     Pixel BackgroundColor;
     Pixel TextColor;
-    size_t LineWidth;
-    size_t MarginX;
-    size_t MarginY;
-    size_t PlotSizeX;
-    size_t PlotSizeY; 
+    int LineWidth;
+    int MarginX;
+    int MarginY;
+    int PlotSizeX;
+    int PlotSizeY; 
     float TitleFontSize;
     float AxisFontSize;
     float XFontMargin;
     float YFontMargin;
 };
 
-inline TracePoint ClampToPlotSize(const PlotConfig &config, TracePoint point){
+inline TracePoint ClampToPlotSize(const PlotConfig &config, double x, double y){
     return {
-        config.PlotSizeX * ((point.x - config.LimitsAligned.MinX)/(config.LimitsAligned.MaxX - config.LimitsAligned.MinX)),
-        config.PlotSizeY * ((point.y - config.LimitsAligned.MinY)/(config.LimitsAligned.MaxY - config.LimitsAligned.MinY))
+        config.PlotSizeX * ((x - config.LimitsAligned.MinX)/config.LenX),
+        config.PlotSizeY * ((y - config.LimitsAligned.MinY)/config.LenY)
     };
 }
 
@@ -503,7 +505,7 @@ PlotLimits Align(PlotLimits limits, long multiple){
     return limits;
 }
 
-float Slope(TracePoint p0, TracePoint p1){
+double Slope(TracePoint p0, TracePoint p1){
     return (p1.y-p0.y)/(p1.x-p0.x);
 }
 
@@ -518,6 +520,8 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     PlotConfig config;
     config.Segments        = 5;
     config.LimitsAligned   = Align(FindArrayLimits(traces, traces_count), config.Segments);
+    config.LenX            = config.LimitsAligned.MaxX - config.LimitsAligned.MinX;
+    config.LenY            = config.LimitsAligned.MaxY - config.LimitsAligned.MinY;
     config.TintColor       = {245, 252, 237, 255};
     config.BackgroundColor = Color::White;
     config.TextColor       = {80, 80, 80, 255};
@@ -545,7 +549,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     auto y_step = Utils::GetNiceStep(y_distance, config.Segments);
 
     for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=x_step){
-        TracePoint cross = ClampToPlotSize(config, {i, 0});
+        TracePoint cross = ClampToPlotSize(config, i, 0);
 
         auto label = Utils::Shorten(i);
         Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, image_height - config.MarginY);
@@ -553,7 +557,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     }
 
     for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=y_step){
-        TracePoint cross = ClampToPlotSize(config, {0, i});
+        TracePoint cross = ClampToPlotSize(config, 0, i);
 
         auto label = Utils::Shorten(i);
         Rasterizer::DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, image_width - config.MarginX, config.MarginY + cross.y);
@@ -565,13 +569,13 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
     for(size_t i = 0; i<traces_count; ++i){
         Pixel color = colors.NextColor();
         for(size_t j = 0; j < traces[i].Count - 1;++j){
-            TracePoint p0 = ClampToPlotSize(config, {traces[i].x[j], traces[i].y[j]});
-            TracePoint p1 = ClampToPlotSize(config, {traces[i].x[j + 1], traces[i].y[j + 1]}); 
-            
-            float initial_slope = Slope(p0, p1);
+            TracePoint p0 = ClampToPlotSize(config, traces[i].x[j], traces[i].y[j]);
+            TracePoint p1 = ClampToPlotSize(config, traces[i].x[j + 1], traces[i].y[j + 1]); 
+
+            auto initial_slope = Slope(p0, p1);
 
             for(size_t k = j+2; k<traces[i].Count - 1; ++k){
-                TracePoint potential = ClampToPlotSize(config, {traces[i].x[k], traces[i].y[k]});
+                TracePoint potential = ClampToPlotSize(config, traces[i].x[k], traces[i].y[k]);
 
                 if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
                     p1 = potential;
@@ -579,10 +583,10 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
                 }else break;
             }
 
-            Rasterizer::DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + p0.x, config.MarginY + p0.y, config.MarginX + p1.x, config.MarginY + p1.y);
+            Rasterizer::DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
         }
 
-        TracePoint last_trace = ClampToPlotSize(config, {traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]});
+        TracePoint last_trace = ClampToPlotSize(config, traces[i].x[traces[i].Count - 1], traces[i].y[traces[i].Count - 1]);
 
         Rasterizer::DrawString(background, color, traces[i].TraceName, config.AxisFontSize, image_width - config.MarginX*0.9, last_trace.y + config.MarginY);
     }
