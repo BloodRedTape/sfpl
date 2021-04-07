@@ -14,7 +14,14 @@ struct TraceData{
 
 struct PlotBuilder{
     static bool Trace(const char *outfilepath, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count);
+
+    static bool Trace(const char *outfilepath, const char *graph_name, size_t image_width, size_t image_height, const TraceData &trace);
+
 };
+
+inline bool PlotBuilder::Trace(const char *outfilepath, const char *graph_name, size_t image_width, size_t image_height, const TraceData &trace){
+    return Trace(outfilepath, graph_name, image_width, image_height, &trace, 1);
+}
 
 }//namespace libplot::
 

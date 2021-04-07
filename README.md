@@ -27,7 +27,7 @@ int main(){
     trace.y = &y[0]; // pointer to the first element of Y array
     trace.Count = 6; // elements count of X and Y arrays
 
-    PlotBuilder::Trace("parabola.jpg", "Test Graph", 1280, 720, &trace, 1);
+    PlotBuilder::Trace("parabola.jpg", "Test Graph", 1280, 720, trace);
 }
 
 ```
