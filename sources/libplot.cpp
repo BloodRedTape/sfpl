@@ -124,7 +124,7 @@ struct Image{
 };
 
 struct Rasterizer{
-    static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y);
+    static void DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y);
 
     static void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
 
@@ -206,7 +206,7 @@ bool Image::Write(const char *filepath){
     return true;
 }
 
-void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, size_t x, size_t y){
+void Rasterizer::DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y){
     for(float i = -radius; i <= radius; ++i){
         float res = std::sqrt(float(radius * radius - i*i));
         for(float j = -res; j <= res; ++j){
@@ -503,6 +503,10 @@ PlotLimits Align(PlotLimits limits, long multiple){
     return limits;
 }
 
+float Slope(TracePoint p0, TracePoint p1){
+    return (p1.y-p0.y)/(p1.x-p0.x);
+}
+
 bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
 #ifndef NDEBUG
     assert(traces);
@@ -562,7 +566,18 @@ bool PlotBuilder::Trace(const char *outfilename, const char *graph_name, size_t 
         Pixel color = colors.NextColor();
         for(size_t j = 0; j < traces[i].Count - 1;++j){
             TracePoint p0 = ClampToPlotSize(config, {traces[i].x[j], traces[i].y[j]});
-            TracePoint p1 = ClampToPlotSize(config, {traces[i].x[j + 1], traces[i].y[j + 1]});
+            TracePoint p1 = ClampToPlotSize(config, {traces[i].x[j + 1], traces[i].y[j + 1]}); 
+            
+            float initial_slope = Slope(p0, p1);
+
+            for(size_t k = j+2; k<traces[i].Count - 1; ++k){
+                TracePoint potential = ClampToPlotSize(config, {traces[i].x[k], traces[i].y[k]});
+
+                if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
+                    p1 = potential;
+                    ++j;
+                }else break;
+            }
 
             Rasterizer::DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + p0.x, config.MarginY + p0.y, config.MarginX + p1.x, config.MarginY + p1.y);
         }
