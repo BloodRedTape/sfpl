@@ -37,4 +37,4 @@ Expected result:
 ### Or you can go even further
 ***
 
-![](https://github.com/E1Hephaestus/libplot/blob/master/examples/example.png?raw=true)
+![](https://github.com/E1Hephaestus/libplot/blob/master/examples/operations.png?raw=true)
