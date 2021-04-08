@@ -325,14 +325,12 @@ std::string Shorten(double n){
     return ss.str();
 }
 
-void AlignPair(double &min, double &max){
+void AlignPair(double &min, double &max, size_t round = 2){
     ScientificDouble range(max - min);
     ScientificDouble s_min(min), s_max(max);
 
-    constexpr size_t RoundNumbers = 2;
-
-    s_min.Exponent = std::floor(s_min.Exponent * pow(10, s_min.Mantissa - range.Mantissa + RoundNumbers - 1)) / pow(10, s_min.Mantissa - range.Mantissa + RoundNumbers - 1);
-    s_max.Exponent = std::ceil(s_max.Exponent * pow(10, s_max.Mantissa - range.Mantissa + RoundNumbers - 1)) / pow(10, s_max.Mantissa - range.Mantissa + RoundNumbers - 1);
+    s_min.Exponent = std::floor(s_min.Exponent * pow(10, s_min.Mantissa - range.Mantissa + round - 1)) / pow(10, s_min.Mantissa - range.Mantissa + round - 1);
+    s_max.Exponent = std::ceil(s_max.Exponent * pow(10, s_max.Mantissa - range.Mantissa + round - 1)) / pow(10, s_max.Mantissa - range.Mantissa + round - 1);
 
     min = s_min.ToDouble();
     max = s_max.ToDouble();
@@ -414,6 +412,10 @@ struct PlotConfig{
     float YFontMargin;
 };
 
+bool InRange(double value, const AxisRange &range){
+    return value <= range.Max && value >= range.Min;
+}
+
 TracePoint MapToPlotCoords(const PlotConfig &config, double x, double y){
     return {
         config.PlotSizeX * ((x - config.Range.x.Min)/config.DataRangeX),
@@ -444,32 +446,40 @@ PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count)
                 result.y.Max = traces[i].y[j];    
         }
     }
-
-    std::cout << "Range: \n" << std::fixed;
-    std::cout << "x.Min: " << result.x.Min << std::endl;
-    std::cout << "x.Max: " << result.x.Max << std::endl;
-    std::cout << "y.Min: " << result.y.Min << std::endl;
-    std::cout << "y.Max: " << result.y.Max << std::endl;
     return result;
 }
 
-PlotRange MakeBestAlignment(const PlotRange &range){
-    std::cout << "Range: \n" << std::fixed;
-    std::cout << "x.Min: " << range.x.Min << std::endl;
-    std::cout << "x.Max: " << range.x.Max << std::endl;
-    std::cout << "y.Min: " << range.y.Min << std::endl;
-    std::cout << "y.Max: " << range.y.Max << std::endl;
+double RoundByFirstDigit(double number){
+    Utils::ScientificDouble scientific(number);
+    scientific.Exponent = std::round(scientific.Exponent);
+    return scientific.ToDouble();
+}
 
+double GetNiceStep2(const AxisRange &true_range, const AxisRange &aligned){
+    constexpr size_t Begin = 4;
+    constexpr size_t End = 10;
+
+    double dist = RoundByFirstDigit(aligned.Max - aligned.Min);
+
+    for(size_t i = 2; i<=200; i++){
+        Utils::ScientificDouble step(dist/i);
+
+        if(Utils::Fraction(step.Exponent) < 0.001){
+            size_t occur = (true_range.Max - true_range.Min)/step.ToDouble();
+
+            if(occur <= End && occur >= Begin){
+                return step.ToDouble();
+            }
+        }
+    }
+    
+    return (true_range.Max - true_range.Min) / 5;
+}
+
+PlotRange MakeBestAlignment(const PlotRange &range){
     PlotRange best_range = range;
     Utils::AlignPair(best_range.x.Min, best_range.x.Max);
     Utils::AlignPair(best_range.y.Min, best_range.y.Max);
-
-    std::cout << "BestRange: \n" << std::fixed;
-    std::cout << "x.Min: " << best_range.x.Min << std::endl;
-    std::cout << "x.Max: " << best_range.x.Max << std::endl;
-    std::cout << "y.Min: " << best_range.y.Min << std::endl;
-    std::cout << "y.Max: " << best_range.y.Max << std::endl;
-
     return best_range;
 }
 
@@ -490,30 +500,36 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
     DrawPlotBackground(background, config, config.TintColor);
 
-    const PlotRange &range = config.Range;
+    PlotRange range = config.Range;
 
-    auto x_step = Utils::GetNiceStep(config.DataRangeX);
-    auto y_step = Utils::GetNiceStep(config.DataRangeY);
+    Utils::AlignPair(range.x.Min, range.x.Max, 0);
+    Utils::AlignPair(range.y.Min, range.y.Max, 0);
 
-    for(auto i = 0; i <= std::ceil(config.DataRangeX / x_step); i++){
-        auto current = config.Range.x.Min + i*x_step;
+    auto x_step = GetNiceStep2(config.Range.x, range.x);
+    auto y_step = GetNiceStep2(config.Range.y, range.y);
 
-        TracePoint cross = MapToPlotCoords(config, current, 0);
+    for(auto i = 0; i <= std::ceil((range.x.Max - range.x.Min) / x_step); i++){
+        auto current = range.x.Min + i*x_step;
+        if(InRange(current, config.Range.x)){
 
-        std::string label = Utils::Shorten(current);
-        DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, background.Height - config.MarginY);
-        DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
+            TracePoint cross = MapToPlotCoords(config, current, 0);
+
+            std::string label = Utils::Shorten(current);
+            DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, background.Height - config.MarginY);
+            DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
+        }
     }
 
-    for(auto i = 0; i <= std::ceil(config.DataRangeY / y_step); i++){
-        auto current = config.Range.y.Min + i*y_step;
+    for(auto i = 0; i <= std::ceil((range.y.Max - range.y.Min) / y_step); i++){
+        auto current = range.y.Min + i*y_step;
+        if(InRange(current, config.Range.y)){
+            TracePoint cross = MapToPlotCoords(config, 0, current);
 
-        TracePoint cross = MapToPlotCoords(config, 0, current);
+            std::string label = Utils::Shorten(current);
 
-        std::string label = Utils::Shorten(current);
-
-        DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, background.Width - config.MarginX, config.MarginY + cross.y);
-        DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
+            DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, background.Width - config.MarginX, config.MarginY + cross.y);
+            DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
+        }
     }
 }
 
