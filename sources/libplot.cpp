@@ -10,7 +10,6 @@
 extern unsigned char opensans_regular[];
 
 //stbi prototypes
-namespace {
 
 typedef struct
 {
@@ -265,8 +264,6 @@ void DrawString(Image &image, const Pixel &color, const char *string, size_t fon
     }
 }
 
-namespace Utils{
-
 struct ScientificDouble{
     double Exponent;
     double Mantissa;
@@ -376,9 +373,6 @@ double GetNiceStep(double distance){
     return dist.ToDouble();
 }
 
-}//namespace Utils::
-
-
 struct TracePoint{
     double x;
     double y;
@@ -450,7 +444,7 @@ PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count)
 }
 
 double RoundByFirstDigit(double number){
-    Utils::ScientificDouble scientific(number);
+    ScientificDouble scientific(number);
     scientific.Exponent = std::round(scientific.Exponent);
     return scientific.ToDouble();
 }
@@ -462,9 +456,9 @@ double GetNiceStep2(const AxisRange &true_range, const AxisRange &aligned){
     double dist = RoundByFirstDigit(aligned.Max - aligned.Min);
 
     for(size_t i = 2; i<=200; i++){
-        Utils::ScientificDouble step(dist/i);
+        ScientificDouble step(dist/i);
 
-        if(Utils::Fraction(step.Exponent) < 0.001){
+        if(Fraction(step.Exponent) < 0.001){
             size_t occur = (true_range.Max - true_range.Min)/step.ToDouble();
 
             if(occur <= End && occur >= Begin){
@@ -478,8 +472,8 @@ double GetNiceStep2(const AxisRange &true_range, const AxisRange &aligned){
 
 PlotRange MakeBestAlignment(const PlotRange &range){
     PlotRange best_range = range;
-    Utils::AlignPair(best_range.x.Min, best_range.x.Max);
-    Utils::AlignPair(best_range.y.Min, best_range.y.Max);
+    AlignPair(best_range.x.Min, best_range.x.Max);
+    AlignPair(best_range.y.Min, best_range.y.Max);
     return best_range;
 }
 
@@ -502,8 +496,8 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
     PlotRange range = config.Range;
 
-    Utils::AlignPair(range.x.Min, range.x.Max, 0);
-    Utils::AlignPair(range.y.Min, range.y.Max, 0);
+    AlignPair(range.x.Min, range.x.Max, 0);
+    AlignPair(range.y.Min, range.y.Max, 0);
 
     auto x_step = GetNiceStep2(config.Range.x, range.x);
     auto y_step = GetNiceStep2(config.Range.y, range.y);
@@ -514,7 +508,7 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
             TracePoint cross = MapToPlotCoords(config, current, 0);
 
-            std::string label = Utils::Shorten(current);
+            std::string label = Shorten(current);
             DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, background.Height - config.MarginY);
             DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
         }
@@ -525,7 +519,7 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
         if(InRange(current, config.Range.y)){
             TracePoint cross = MapToPlotCoords(config, 0, current);
 
-            std::string label = Utils::Shorten(current);
+            std::string label = Shorten(current);
 
             DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, background.Width - config.MarginX, config.MarginY + cross.y);
             DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
@@ -572,8 +566,6 @@ void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplo
         DrawTraceName(background, config, traces[i], color);
     }
 }
-
-}//namespace anonymous::
 
 namespace libplot{
 
@@ -623,8 +615,6 @@ bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image
 
 }//namespace libplot
 
-
-namespace {
 
 #define STB_TRUETYPE_IMPLEMENTATION
 
@@ -7307,5 +7297,3 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
 */
-
-}//namespace anonymous::
