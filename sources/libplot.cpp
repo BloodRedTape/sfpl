@@ -324,80 +324,58 @@ std::string Shorten(double n){
     ss << std::setprecision(Precision) << value.ToDouble() << postfix;
     return ss.str();
 }
-double RoundTo(double number, double value, bool up){
-    double correction = 1;
 
-    ScientificDouble scientific(number);
-    if(scientific.Mantissa < 0){
-        correction = pow(10, std::fabs(scientific.Mantissa)+1);
-    }
-    return (std::floor((number*correction)/value) + up)*value / correction;
+void AlignPair(double &min, double &max){
+    ScientificDouble range(max - min);
+    ScientificDouble s_min(min), s_max(max);
+
+    constexpr size_t RoundNumbers = 2;
+
+    s_min.Exponent = std::floor(s_min.Exponent * pow(10, s_min.Mantissa - range.Mantissa + RoundNumbers - 1)) / pow(10, s_min.Mantissa - range.Mantissa + RoundNumbers - 1);
+    s_max.Exponent = std::ceil(s_max.Exponent * pow(10, s_max.Mantissa - range.Mantissa + RoundNumbers - 1)) / pow(10, s_max.Mantissa - range.Mantissa + RoundNumbers - 1);
+
+    min = s_min.ToDouble();
+    max = s_max.ToDouble();
 }
 
-double AlignTo(double value, long multiple, bool up, long digits_count){
-    ScientificDouble scientific(value);
-
-    auto correction_power = pow(10, std::fabs(scientific.Mantissa));
-
-    value = scientific.Exponent * correction_power;
-
-    auto power = pow(10, digits_count);
-
-    value = (long(value/power) - ((multiple - long(std::fabs(value)/power)%multiple)%multiple)*(long)pow(-1, up)) * power;
-
-    scientific.Exponent = value / correction_power;
-
-    return scientific.ToDouble();
+double Fraction(double number){
+    return std::modf(number, &number);
 }
 
-void AlignPair(double &min, double &max, long multiple){
-    // we do this because zero's mantissa equals zero
-    constexpr double Eps = 0.0000001;
-
-    size_t digits_count = std::max(IntegerDigits(max-min)-2,0l);
-
-    if(std::fabs(min) < Eps){
-        max = AlignTo(max, multiple, true, digits_count);
-        return;
-    }
-
-    if(std::fabs(max) < Eps){
-        min = AlignTo(min, multiple, false, digits_count);
-        return;
-    }
-
-    if(std::fabs(max) > std::fabs(min)){
-        ScientificDouble s_max(max);
-
-        auto power = pow(10, std::max(std::fabs(s_max.Mantissa)-1,0.0));
-
-        max = AlignTo(max, multiple, true, digits_count);
-        min = RoundTo(min, multiple * power, false);
-    }else if(std::fabs(max) < std::fabs(min)){
-        ScientificDouble s_min(min);
-
-        auto power = pow(10, std::max(std::fabs(s_min.Mantissa)-1,0.0));
-
-        min = AlignTo(min, multiple, false, digits_count);
-        max = RoundTo(max, multiple * power, true);
-    }else{
-        max = AlignTo(max, multiple, true, digits_count);
-        min = AlignTo(min, multiple, false, digits_count);
-    }
-
+bool IsRoundTwo(double number){
+    return Fraction(number/10) < 0.0001;
 }
 
-double GetNiceStep(double distance, size_t segments){
-    constexpr size_t Begin = 5;
-    constexpr size_t End = 10;
+double GetNiceStep(double distance){
+    constexpr size_t ShortenDigits = 3;
+    constexpr size_t Begin = 4;
+    constexpr size_t End   = 10;
+
+    ScientificDouble dist(distance);
+
+    double power = pow(10, ShortenDigits - 1);
+    double measure = dist.Exponent * power;
+
+    double best_exp = measure / 5;
+    bool is_found = false;
+    bool is_round = false;
 
     for(size_t i = Begin; i<=End; ++i){
-        auto value = std::fabs(log10(distance / (i * segments)));
-        double integer;
-        if(std::modf(value, &integer) < 0.0000001 && value >= long(std::fabs(log10(distance)) - 1)) return distance/i;
+        double value = measure / i;
+        if(Fraction(value) < 0.0001){
+            if(IsRoundTwo(value)){
+                best_exp = value;
+                break;
+            }else if(!is_found){
+                is_found = true;
+                best_exp = value;
+            }
+        }
     }
 
-    return distance / Begin;
+    dist.Exponent = best_exp / power;
+
+    return dist.ToDouble();
 }
 
 }//namespace Utils::
@@ -408,13 +386,18 @@ struct TracePoint{
     double y;
 };
 
-struct PlotLimits{
-    double MinX, MinY, MaxX, MaxY;
+struct AxisRange{
+    double Min = 0;
+    double Max = 0;
+};
+
+struct PlotRange{
+    AxisRange x{};
+    AxisRange y{};
 };
 
 struct PlotConfig{
-    size_t Segments;
-    PlotLimits LimitsAligned;
+    PlotRange Range;
     double DataRangeX;
     double DataRangeY;
     Pixel TintColor;
@@ -433,37 +416,61 @@ struct PlotConfig{
 
 TracePoint MapToPlotCoords(const PlotConfig &config, double x, double y){
     return {
-        config.PlotSizeX * ((x - config.LimitsAligned.MinX)/config.DataRangeX),
-        config.PlotSizeY * ((y - config.LimitsAligned.MinY)/config.DataRangeY)
+        config.PlotSizeX * ((x - config.Range.x.Min)/config.DataRangeX),
+        config.PlotSizeY * ((y - config.Range.y.Min)/config.DataRangeY)
     };
 }
 
-PlotLimits FindArrayLimits(const ::libplot::TraceData traces[], size_t traces_count){
-    PlotLimits result = {
-        std::numeric_limits<double>::max(),
-        std::numeric_limits<double>::max(),
-        std::numeric_limits<double>::min(),
-        std::numeric_limits<double>::min()
+PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count){
+    PlotRange result = {
+        {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::min()
+        },
+        {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::min()
+        }
     };
     for(size_t i = 0; i<traces_count; ++i){
         for(size_t j = 0; j<traces[i].Count; j++){
-            if(traces[i].x[j] < result.MinX)
-                result.MinX = traces[i].x[j];
-            if(traces[i].y[j] < result.MinY)
-                result.MinY = traces[i].y[j];    
-            if(traces[i].x[j] > result.MaxX)
-                result.MaxX = traces[i].x[j];    
-            if(traces[i].y[j] > result.MaxY)
-                result.MaxY = traces[i].y[j];    
+            if(traces[i].x[j] < result.x.Min)
+                result.x.Min = traces[i].x[j];
+            if(traces[i].y[j] < result.y.Min)
+                result.y.Min = traces[i].y[j];    
+            if(traces[i].x[j] > result.x.Max)
+                result.x.Max = traces[i].x[j];    
+            if(traces[i].y[j] > result.y.Max)
+                result.y.Max = traces[i].y[j];    
         }
     }
+
+    std::cout << "Range: \n" << std::fixed;
+    std::cout << "x.Min: " << result.x.Min << std::endl;
+    std::cout << "x.Max: " << result.x.Max << std::endl;
+    std::cout << "y.Min: " << result.y.Min << std::endl;
+    std::cout << "y.Max: " << result.y.Max << std::endl;
     return result;
 }
 
-PlotLimits Align(PlotLimits limits, long multiple){
-    Utils::AlignPair(limits.MinX, limits.MaxX, multiple);
-    Utils::AlignPair(limits.MinY, limits.MaxY, multiple);
-    return limits;
+PlotRange MakeBestAlignment(const PlotRange &range){
+    std::cout << "Range: \n" << std::fixed;
+    std::cout << "x.Min: " << range.x.Min << std::endl;
+    std::cout << "x.Max: " << range.x.Max << std::endl;
+    std::cout << "y.Min: " << range.y.Min << std::endl;
+    std::cout << "y.Max: " << range.y.Max << std::endl;
+
+    PlotRange best_range = range;
+    Utils::AlignPair(best_range.x.Min, best_range.x.Max);
+    Utils::AlignPair(best_range.y.Min, best_range.y.Max);
+
+    std::cout << "BestRange: \n" << std::fixed;
+    std::cout << "x.Min: " << best_range.x.Min << std::endl;
+    std::cout << "x.Max: " << best_range.x.Max << std::endl;
+    std::cout << "y.Min: " << best_range.y.Min << std::endl;
+    std::cout << "y.Max: " << best_range.y.Max << std::endl;
+
+    return best_range;
 }
 
 double Slope(TracePoint p0, TracePoint p1){
@@ -483,23 +490,28 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
     DrawPlotBackground(background, config, config.TintColor);
 
-    const PlotLimits &iteration_limits = config.LimitsAligned;
+    const PlotRange &range = config.Range;
 
-    auto x_step = Utils::GetNiceStep(config.DataRangeX, config.Segments);
-    auto y_step = Utils::GetNiceStep(config.DataRangeY, config.Segments);
+    auto x_step = Utils::GetNiceStep(config.DataRangeX);
+    auto y_step = Utils::GetNiceStep(config.DataRangeY);
 
-    for(auto i = iteration_limits.MinX; i<=iteration_limits.MaxX; i+=x_step){
-        TracePoint cross = MapToPlotCoords(config, i, 0);
+    for(auto i = 0; i <= std::ceil(config.DataRangeX / x_step); i++){
+        auto current = config.Range.x.Min + i*x_step;
 
-        std::string label = Utils::Shorten(i);
+        TracePoint cross = MapToPlotCoords(config, current, 0);
+
+        std::string label = Utils::Shorten(current);
         DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, background.Height - config.MarginY);
         DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
     }
 
-    for(auto i = iteration_limits.MinY; i<=iteration_limits.MaxY; i+=y_step){
-        TracePoint cross = MapToPlotCoords(config, 0, i);
+    for(auto i = 0; i <= std::ceil(config.DataRangeY / y_step); i++){
+        auto current = config.Range.y.Min + i*y_step;
 
-        std::string label = Utils::Shorten(i);
+        TracePoint cross = MapToPlotCoords(config, 0, current);
+
+        std::string label = Utils::Shorten(current);
+
         DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, background.Width - config.MarginX, config.MarginY + cross.y);
         DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
     }
@@ -561,10 +573,9 @@ bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image
     }
 
     PlotConfig config;
-    config.Segments        = 5;
-    config.LimitsAligned   = Align(FindArrayLimits(traces, traces_count), config.Segments);
-    config.DataRangeX      = config.LimitsAligned.MaxX - config.LimitsAligned.MinX;
-    config.DataRangeY      = config.LimitsAligned.MaxY - config.LimitsAligned.MinY;
+    config.Range           = MakeBestAlignment(GetPlotRange(traces, traces_count));
+    config.DataRangeX      = config.Range.x.Max - config.Range.x.Min;
+    config.DataRangeY      = config.Range.y.Max - config.Range.y.Min;
     config.TintColor       = {245, 252, 237, 255};
     config.BackgroundColor = {255, 255, 255, 255};
     config.TextColor       = {80, 80, 80, 255};
