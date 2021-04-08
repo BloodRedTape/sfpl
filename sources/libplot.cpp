@@ -341,38 +341,6 @@ bool IsRoundTwo(double number){
     return Fraction(number/10) < 0.0001;
 }
 
-double GetNiceStep(double distance){
-    constexpr size_t ShortenDigits = 3;
-    constexpr size_t Begin = 4;
-    constexpr size_t End   = 10;
-
-    ScientificDouble dist(distance);
-
-    double power = pow(10, ShortenDigits - 1);
-    double measure = dist.Exponent * power;
-
-    double best_exp = measure / 5;
-    bool is_found = false;
-    bool is_round = false;
-
-    for(size_t i = Begin; i<=End; ++i){
-        double value = measure / i;
-        if(Fraction(value) < 0.0001){
-            if(IsRoundTwo(value)){
-                best_exp = value;
-                break;
-            }else if(!is_found){
-                is_found = true;
-                best_exp = value;
-            }
-        }
-    }
-
-    dist.Exponent = best_exp / power;
-
-    return dist.ToDouble();
-}
-
 struct TracePoint{
     double x;
     double y;
@@ -449,7 +417,7 @@ double RoundByFirstDigit(double number){
     return scientific.ToDouble();
 }
 
-double GetNiceStep2(const AxisRange &true_range, const AxisRange &aligned){
+double GetNiceStep(const AxisRange &true_range, const AxisRange &aligned){
     constexpr size_t Begin = 4;
     constexpr size_t End = 10;
 
@@ -499,8 +467,8 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
     AlignPair(range.x.Min, range.x.Max, 0);
     AlignPair(range.y.Min, range.y.Max, 0);
 
-    auto x_step = GetNiceStep2(config.Range.x, range.x);
-    auto y_step = GetNiceStep2(config.Range.y, range.y);
+    auto x_step = GetNiceStep(config.Range.x, range.x);
+    auto y_step = GetNiceStep(config.Range.y, range.y);
 
     for(auto i = 0; i <= std::ceil((range.x.Max - range.x.Min) / x_step); i++){
         auto current = range.x.Min + i*x_step;
