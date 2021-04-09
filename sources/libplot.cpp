@@ -242,8 +242,8 @@ void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, s
 void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
     auto x_limit = std::min(image.Width, width + x0);
     auto y_limit = std::min(image.Height, height + y0);
-    for(size_t j = y0; j<=y_limit; ++j)
-    for(size_t i = x0; i<=x_limit; ++i)
+    for(size_t j = y0; j<y_limit; ++j)
+    for(size_t i = x0; i<x_limit; ++i)
         image.Get(i, j) = pixel;
 }
 
@@ -259,7 +259,7 @@ void DrawString(Image &image, const Pixel &color, const char *string, size_t fon
         unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
 
         if(!bitmap)continue;
-        
+
         for(int y = 0; y < height; y++)
         for(int x = 0; x < width;  x++)
             image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, x0 + offset + x, y0 + abs(yoffset) - y);
@@ -463,10 +463,10 @@ void DrawPlotBackground(Image &background, const PlotConfig &config, Pixel color
 
 void DrawPlotBackgroundFrame(Image &background, const PlotConfig &config){
     DrawOpaqueRect(background, config.BackgroundColor, 0, 0, background.Width, config.MarginY);
-    DrawOpaqueRect(background, config.BackgroundColor, 0, background.Height - config.MarginY - 1, background.Width, config.MarginY);
+    DrawOpaqueRect(background, config.BackgroundColor, 0, background.Height - config.MarginY, background.Width, config.MarginY);
 
     DrawOpaqueRect(background, config.BackgroundColor, 0, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
-    DrawOpaqueRect(background, config.BackgroundColor, background.Width - config.MarginX - 1, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
+    DrawOpaqueRect(background, config.BackgroundColor, background.Width - config.MarginX, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
 }
 
 void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title){
