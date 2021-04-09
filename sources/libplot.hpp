@@ -13,22 +13,22 @@ struct TraceData{
 };
 
 struct PlotBuilder{
-    static bool Trace(const char *outfilepath, const char *title, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count);
+    static bool Trace(const TraceData &trace, const char *outfilepath, size_t width = 1280, size_t height = 720, const char *title = "", const char *x_axis_name = "", const char *y_axis_name = "");
 
     template<size_t N>
-    static bool Trace(const char *outfilepath, const char *title, size_t image_width, size_t image_height, const TraceData (&traces)[N]);
+    static bool Trace(const TraceData (&traces)[N], const char *outfilepath, size_t width = 1280, size_t height = 720, const char *title = "", const char *x_axis_name = "", const char *y_axis_name = "");
 
-    static bool Trace(const char *outfilepath, const char *title, size_t image_width, size_t image_height, const TraceData &trace);
+    static bool Trace(const TraceData traces[], size_t traces_count, const char *outfilepath, size_t width, size_t height, const char *title, const char *x_axis_name, const char *y_axis_name);
 
 };
 
-inline bool PlotBuilder::Trace(const char *outfilepath, const char *title, size_t image_width, size_t image_height, const TraceData &trace){
-    return Trace(outfilepath, title, image_width, image_height, &trace, 1);
+inline bool PlotBuilder::Trace(const TraceData &trace, const char *outfilepath, size_t width, size_t height, const char *title, const char *x_axis_name, const char *y_axis_name){
+    return Trace(&trace, 1, outfilepath, width, height, title, x_axis_name, y_axis_name);
 }
 
 template<size_t N>
-inline bool PlotBuilder::Trace(const char *outfilepath, const char *title, size_t image_width, size_t image_height, const TraceData (&traces)[N]){
-    return Trace(outfilepath, title, image_width, image_height, traces, N);
+inline bool PlotBuilder::Trace(const TraceData (&traces)[N], const char *outfilepath, size_t width, size_t height, const char *title, const char *x_axis_name, const char *y_axis_name){
+    return Trace(traces, N, outfilepath, width, height, title, x_axis_name, y_axis_name);
 }
 
 }//namespace libplot::

@@ -273,7 +273,7 @@ void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size
         image.Get(i, j) = pixel;
 }
 
-void DrawString(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
+void DrawStringHorizontally(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
     int offset = 0;
     for(size_t i = 0; i<strlen(string); ++i){
         if(string[i] == ' '){
@@ -289,6 +289,28 @@ void DrawString(Image &image, const Pixel &color, const char *string, size_t fon
         for(int y = 0; y < height; y++)
         for(int x = 0; x < width;  x++)
             image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, x0 + offset + x, y0 + abs(yoffset) - y);
+        offset += width + font_size * 0.03;
+        stbtt_FreeBitmap(bitmap, nullptr);
+    }
+}
+
+
+void DrawStringVertically(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
+    int offset = 0;
+    for(size_t i = 0; i<strlen(string); ++i){
+        if(string[i] == ' '){
+            offset += font_size * 0.3;
+            continue;
+        }
+
+        int width, height, xoffset, yoffset;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+
+        if(!bitmap)continue;
+
+        for(int y = 0; y < height; y++)
+        for(int x = 0; x < width;  x++)
+            image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, x0 - abs(yoffset) + y, y0 + offset + x);
         offset += width + font_size * 0.03;
         stbtt_FreeBitmap(bitmap, nullptr);
     }
@@ -400,6 +422,7 @@ struct PlotConfig{
     int PlotSizeY; 
     float TitleFontSize;
     float AxisFontSize;
+    float AxisNameFontSize;
     float XFontMargin;
     float YFontMargin;
 };
@@ -480,7 +503,7 @@ double Slope(TracePoint p0, TracePoint p1){
 }
 
 void DrawPlotTitle(Image &background, const PlotConfig &config, const char *title){
-    DrawString(background, config.TextColor, title, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
+    DrawStringHorizontally(background, config.TextColor, title, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
 }
 
 void DrawPlotBackground(Image &background, const PlotConfig &config, Pixel color){
@@ -495,11 +518,9 @@ void DrawPlotBackgroundFrame(Image &background, const PlotConfig &config){
     DrawOpaqueRect(background, config.BackgroundColor, background.Width - config.MarginX, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
 }
 
-void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title){
+void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title, const char *x_axis_name, const char *y_axis_name){
     DrawPlotBackgroundFrame(background, config);
     DrawPlotBackground(background, config, config.TintColor);
-
-    DrawPlotTitle(background, config, title);
 
     PlotRange range = config.Range;
 
@@ -517,10 +538,11 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
             std::string label = Shorten(current);
             DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.LineWidth*2, background.Height - config.MarginY*2);
-            DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
+            DrawStringHorizontally(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
         }
     }
 
+    size_t max_axis_text_size = 0; 
     for(auto i = 0; i <= std::ceil((range.y.Max - range.y.Min) / y_step); i++){
         auto current = range.y.Min + i*y_step;
         if(InRange(current, config.Range.y)){
@@ -528,10 +550,19 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
             std::string label = Shorten(current);
 
+            size_t text_length = default_font.GetStringLength(label.c_str(), config.AxisFontSize);
+
+            if(text_length > max_axis_text_size) max_axis_text_size = text_length;
+
             DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.LineWidth*2);
-            DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
+            DrawStringHorizontally(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - text_length, config.MarginY + cross.y - config.AxisFontSize / 4);
         }
     }
+
+    DrawPlotTitle(background, config, title);
+
+    DrawStringVertically(background, config.TextColor, y_axis_name, config.AxisNameFontSize, std::min(config.MarginX * 0.55, config.MarginX*0.92 - max_axis_text_size), background.Height/2-default_font.GetStringLength(y_axis_name, config.AxisNameFontSize)/2);
+    DrawStringHorizontally(background, config.TextColor, x_axis_name, config.AxisNameFontSize, background.Width/2-default_font.GetStringLength(x_axis_name, config.AxisNameFontSize)/2, config.MarginY * 0.35);
 }
 
 void DrawPlotLine(Image &background, const PlotConfig &config, TracePoint p0, TracePoint p1, Pixel color){
@@ -541,7 +572,7 @@ void DrawPlotLine(Image &background, const PlotConfig &config, TracePoint p0, Tr
 void DrawTraceName(Image &background, const PlotConfig &config, const ::libplot::TraceData &trace, Pixel color){
     TracePoint last_trace = MapToPlotCoords(config, trace.x[trace.Count - 1], trace.y[trace.Count - 1]);
 
-    DrawString(background, color, trace.TraceName, config.AxisFontSize, background.Width - config.MarginX*0.9, last_trace.y + config.MarginY);
+    DrawStringHorizontally(background, color, trace.TraceName, config.AxisFontSize, background.Width - config.MarginX*0.9, last_trace.y + config.MarginY);
 }
 
 void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplot::TraceData traces[], size_t traces_count){
@@ -576,14 +607,16 @@ void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplo
 
 namespace libplot{
 
-bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
+bool PlotBuilder::Trace(const TraceData traces[], size_t traces_count, const char *outfilepath, size_t width, size_t height, const char *title, const char *x_axis_name, const char *y_axis_name){
 #ifndef NDEBUG
-    Assert(outfilename != nullptr, "outfilename can't be nullptr");
-    Assert(title != nullptr, "title can't be nullptr");
-    Assert(image_width >= 50, "Image Width can't be less then 50");
-    Assert(image_height >= 50, "Image Height can't be less then 50");
     Assert(traces != nullptr, "traces can't be nullptr");
     Assert(traces_count != 0, "can't build a plot with zero traces");
+    Assert(outfilepath != nullptr, "outfilename can't be nullptr");
+    Assert(width >= 50, "Image Width can't be less then 50");
+    Assert(height >= 50, "Image Height can't be less then 50");
+    Assert(title != nullptr, "title can't be nullptr");
+    Assert(x_axis_name != nullptr, "x_axis_name can't be nullptr");
+    Assert(y_axis_name != nullptr, "y_axis_name can't be nullptr");
 
     for(size_t i = 0; i<traces_count; ++i){
         Assert(traces[i].Count >= 2, " Can't build a plot using less than two points");
@@ -601,12 +634,13 @@ bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image
     config.BackgroundColor = {255, 255, 255, 255};
     config.TextColor       = {80, 80, 80, 255};
     config.LineWidth       = 1;
-    config.MarginX         = image_width * 0.1;
-    config.MarginY         = image_height * 0.1;
-    config.PlotSizeX       = image_width - config.MarginX * 2;
-    config.PlotSizeY       = image_height - config.MarginY * 2;
+    config.MarginX         = width * 0.1;
+    config.MarginY         = height * 0.1;
+    config.PlotSizeX       = width - config.MarginX * 2;
+    config.PlotSizeY       = height - config.MarginY * 2;
     config.TitleFontSize   = std::min(config.MarginX, config.MarginY) * 0.6;
     config.AxisFontSize    = config.TitleFontSize/2;
+    config.AxisNameFontSize= config.AxisFontSize * 1.3;
     config.XFontMargin     = config.AxisFontSize * 2;
     config.YFontMargin     = config.AxisFontSize* 1.05;
 
@@ -617,13 +651,13 @@ bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image
         return false;
     }
 
-    Image background(image_width, image_height);
+    Image background(width, height);
 
-    DrawPlotFrame(background, config, title);
+    DrawPlotFrame(background, config, title, x_axis_name, y_axis_name);
 
     DrawPlotContent(background, config, traces, traces_count);
 
-    return background.Write(outfilename);
+    return background.Write(outfilepath);
 }
 
 }//namespace libplot
