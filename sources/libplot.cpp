@@ -2,10 +2,35 @@
 #include <cstring>
 #include <iostream>
 #include <iomanip>
-#include <assert.h>
 #include <limits>
 #include <cmath>
 #include "libplot.hpp"
+
+#ifdef _MSC_VER
+    #define __FUNCTION__ __FUNCSIG__
+#elif defined(__GNUC__) || defined(__clang__)
+    #define __FUNCTION__ __PRETTY_FUNCTION__
+#else
+    #define __FUNCTION__ ""
+    #warning "This compiler does not support function name in assertions"
+#endif
+
+void AssertFail(const char *assertion, const char *function,const char *message);
+
+#ifndef NDEBUG
+    #define Assert(x, msg) (static_cast<bool>(x) ? void(0) : ::AssertFail(#x, __FUNCTION__, msg))
+#else
+    #define Assert(x, msg) (void)0
+#endif
+
+void AssertFail(const char *assertion, const char *function,const char *message){
+    std::cerr << "[libplot]: Assertion Failed" << std::endl;
+    std::cerr << "Function: " << function  << std::endl;
+    std::cerr << "Expression: " << assertion << std::endl;
+    std::cerr << "Message: " << message << std::endl;
+    std::cerr << "Terminating..." << std::endl;
+    exit(0);
+}
 
 extern unsigned char opensans_regular[];
 
@@ -551,15 +576,21 @@ void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplo
 namespace libplot{
 
 bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image_width, size_t image_height, const TraceData traces[], size_t traces_count){
-    assert(traces);
-    assert(traces_count);
+#ifndef NDEBUG
+    Assert(outfilename != nullptr, "outfilename can't be nullptr");
+    Assert(title != nullptr, "title can't be nullptr");
+    Assert(image_width >= 50, "Image Width can't be less then 50");
+    Assert(image_height >= 50, "Image Height can't be less then 50");
+    Assert(traces != nullptr, "traces can't be nullptr");
+    Assert(traces_count != 0, "can't build a plot with zero traces");
 
     for(size_t i = 0; i<traces_count; ++i){
-        if(traces[i].Count < 2){
-            std::cerr << "[libplot]: Can't build a plot using less than two points\n";
-            return false;
-        }
+        Assert(traces[i].Count >= 2, " Can't build a plot using less than two points");
+        Assert(traces[i].TraceName != nullptr,"TraceName should be a pointer to a valid string, if you want and empty one, assign \"\"");
+        Assert(traces[i].x != nullptr,"pointer to X array should be a valid non-null pointer");
+        Assert(traces[i].y != nullptr,"pointer to Y array should be a valid non-null pointer");
     }
+#endif
 
     PlotConfig config;
     config.Range           = MakeBestAlignment(GetPlotRange(traces, traces_count));
