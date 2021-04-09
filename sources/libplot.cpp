@@ -416,6 +416,7 @@ struct PlotConfig{
     Pixel BackgroundColor;
     Pixel TextColor;
     int LineWidth;
+    int SeparatorWidth;
     int MarginX;
     int MarginY;
     int PlotSizeX;
@@ -537,7 +538,7 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
             TracePoint cross = MapToPlotCoords(config, current, 0);
 
             std::string label = Shorten(current);
-            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.LineWidth*2, background.Height - config.MarginY*2);
+            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.SeparatorWidth, background.Height - config.MarginY*2);
             DrawStringHorizontally(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
         }
     }
@@ -554,7 +555,7 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
             if(text_length > max_axis_text_size) max_axis_text_size = text_length;
 
-            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.LineWidth*2);
+            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.SeparatorWidth);
             DrawStringHorizontally(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - text_length, config.MarginY + cross.y - config.AxisFontSize / 4);
         }
     }
@@ -634,6 +635,7 @@ bool PlotBuilder::Trace(const TraceData traces[], size_t traces_count, const cha
     config.BackgroundColor = {255, 255, 255, 255};
     config.TextColor       = {80, 80, 80, 255};
     config.LineWidth       = 1;
+    config.SeparatorWidth  = 3;
     config.MarginX         = width * 0.1;
     config.MarginY         = height * 0.1;
     config.PlotSizeX       = width - config.MarginX * 2;

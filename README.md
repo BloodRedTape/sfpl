@@ -10,7 +10,7 @@ P.S. It is better not to open font.cpp :-)
 
 ## Examples
 
-### Small parabola
+### Minimum amount of code to create a simple plot:
 ```c++
 #include "libplot.hpp"
 
@@ -27,14 +27,40 @@ int main(){
     trace.y = &y[0]; // pointer to the first element of Y array
     trace.Count = 6; // elements count of X and Y arrays
 
-    PlotBuilder::Trace("parabola.jpg", "Test Graph", 1280, 720, trace);
+    PlotBuilder::Trace(trace, "parabola.jpg");
 }
 
 ```
 Expected result:
 ![](https://github.com/E1Hephaestus/libplot/blob/master/examples/parabola.jpg?raw=true)
 
-### Or you can go even further
+### You can pass array of TraceData in order to plot multiple traces
+```c++
+
+    TraceData traces[SIZE];
+    //... code to fill traces array
+    PlotBuilder::Trace(traces, "parabola.jpg");
+
+```
+### You can provide each trace with name
+
+```c++
+    TraceData trace; 
+    //... code to fill trace structure
+    trace.Name = "Trace Name";
+
+```
+
+### You can pass output image width and height, plot title and axis names
+By default they are empty.
+
+```c++
+    //...
+    PlotBuilder::Trace(traces, "parabola.jpg", ImageWidth, ImageHeight, "PlotTitle", "XAxisName", "YAxisName");
+
+```
+
+### In the end you can get something like this
 ***
 
 ![](https://github.com/E1Hephaestus/libplot/blob/master/examples/operations.png?raw=true)
