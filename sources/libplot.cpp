@@ -80,6 +80,8 @@ size_t FontInfo::GetStringLength(const char *string, size_t font_size){
         int width, height, xoffset, yoffset;
         unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
 
+        if(!bitmap)continue;
+
         length += width + font_size * 0.03;
         stbtt_FreeBitmap(bitmap, nullptr);
     }
@@ -256,6 +258,8 @@ void DrawString(Image &image, const Pixel &color, const char *string, size_t fon
         int width, height, xoffset, yoffset;
         unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
 
+        if(!bitmap)continue;
+        
         for(int y = 0; y < height; y++)
         for(int x = 0; x < width;  x++)
             image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, x0 + offset + x, y0 + abs(yoffset) - y);
