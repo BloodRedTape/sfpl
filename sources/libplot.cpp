@@ -199,14 +199,14 @@ bool Image::Write(const char *filepath){
     return true;
 }
 
-void DrawOpaquePoint(Image &image, const Pixel &color, float radius, float x, float y){
-    for(float i = -radius; i <= radius; ++i){
-        float res = std::sqrt(float(radius * radius - i*i));
-        for(float j = -res; j <= res; ++j){
-            size_t f_x = i+x;
-            size_t f_y = j+y;
-            if(f_x < image.Width && f_y < image.Height)
-                image.Get(f_x, f_y) = color;
+void DrawOpaquePoint(Image &image, const Pixel &color, size_t radius, size_t x, size_t y){
+    for(size_t i = 0; i <= radius; ++i){
+        size_t res = std::sqrt(radius * radius - i*i);
+        for(size_t j = 0; j <= res; ++j){
+            image.Get(x+i, y+j) = color;
+            image.Get(x-i, y+j) = color;
+            image.Get(x+i, y-j) = color;
+            image.Get(x-i, y-j) = color;
         }
     }
 }
@@ -457,10 +457,19 @@ void DrawPlotBackground(Image &background, const PlotConfig &config, Pixel color
     DrawOpaqueRect(background, color, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
 }
 
-void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title){
-    DrawPlotTitle(background, config, title);
+void DrawPlotBackgroundFrame(Image &background, const PlotConfig &config){
+    DrawOpaqueRect(background, config.BackgroundColor, 0, 0, background.Width, config.MarginY);
+    DrawOpaqueRect(background, config.BackgroundColor, 0, background.Height - config.MarginY - 1, background.Width, config.MarginY);
 
+    DrawOpaqueRect(background, config.BackgroundColor, 0, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
+    DrawOpaqueRect(background, config.BackgroundColor, background.Width - config.MarginX - 1, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
+}
+
+void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title){
+    DrawPlotBackgroundFrame(background, config);
     DrawPlotBackground(background, config, config.TintColor);
+
+    DrawPlotTitle(background, config, title);
 
     PlotRange range = config.Range;
 
@@ -477,7 +486,7 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
             TracePoint cross = MapToPlotCoords(config, current, 0);
 
             std::string label = Shorten(current);
-            DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX + cross.x, config.MarginY, config.MarginX + cross.x, background.Height - config.MarginY);
+            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.LineWidth*2, background.Height - config.MarginY*2);
             DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
         }
     }
@@ -489,7 +498,7 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
             std::string label = Shorten(current);
 
-            DrawOpaqueLine(background, config.BackgroundColor, 1, config.MarginX, config.MarginY + cross.y, background.Width - config.MarginX, config.MarginY + cross.y);
+            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.LineWidth*2);
             DrawString(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - default_font.GetStringLength(label.c_str(), config.AxisFontSize), config.MarginY + cross.y - config.AxisFontSize / 4);
         }
     }
@@ -572,7 +581,7 @@ bool PlotBuilder::Trace(const char *outfilename, const char *title, size_t image
         return false;
     }
 
-    Image background(image_width, image_height, config.BackgroundColor);
+    Image background(image_width, image_height);
 
     DrawPlotFrame(background, config, title);
 
