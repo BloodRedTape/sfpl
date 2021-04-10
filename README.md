@@ -64,3 +64,96 @@ By default they are empty.
 ***
 
 ![](https://github.com/E1Hephaestus/libplot/blob/master/examples/operations.png?raw=true)
+
+## Original library intention was to plot operation benchmarks
+
+It can be done somehow like this
+
+```c++
+#include "libplot.hpp"
+// https://github.com/E1Hephaestus/clock
+#include "clock.hpp"
+
+using namespace libplot;
+
+void HeavyOperation(int n){
+    ++n;
+    for(int i = 0; i<n; i++){
+        char *array = new char[n*20];
+        for(int j = 0; j<n*20; j++)
+            array[j] = 0;
+        delete[] array;
+    }
+}
+
+int main(){
+    const int BenchmarkSize = 1000;
+
+    double x[BenchmarkSize];
+    double y[BenchmarkSize];
+
+    for(int j = 0; j<BenchmarkSize; ++j){
+        Clock clock;
+
+        HeavyOperation(j);
+
+        auto time = clock.GetElapsedTime().AsNanoseconds();
+
+        x[j] = j;
+        y[j] = time;
+    }
+
+    TraceData trace;
+    trace.x = &x[0];
+    trace.y = &y[0];
+    trace.Count = BenchmarkSize;
+
+    PlotBuilder::Trace(trace, "heavy_test.jpg",1280, 720, "Heavy Operation Test", "Heavy operation size", "Time [ns]");
+}
+
+```
+
+Or in case you are a big STL fan
+```c++
+#include <vector>
+#include "libplot.hpp"
+// https://github.com/E1Hephaestus/clock
+#include "clock.hpp"
+
+using namespace libplot;
+
+void HeavyOperation(int n){
+    for(int i = 0; i<n; i++){
+        char *array = new char[n*20];
+        for(int j = 0; j<n*20; j++)
+            array[j] = 0;
+        delete[] array;
+    }
+}
+
+int main(){
+    std::vector<double> x;
+    std::vector<double> y;
+
+    for(int j = 0; j<1000; ++j){
+        Clock clock;
+
+        HeavyOperation(j);
+
+        auto time = clock.GetElapsedTime().AsNanoseconds();
+
+        x.push_back(j);
+        y.push_back(time);
+    }
+
+    TraceData trace;
+    trace.x = &x[0];
+    trace.y = &y[0];
+    trace.Count = x.size();
+
+    PlotBuilder::Trace(trace, "heavy_test.jpg",1280, 720, "Heavy Operation Test", "Heavy operation size", "Time [ns]");
+}
+```
+
+Possible Result:
+![](https://github.com/E1Hephaestus/libplot/blob/master/examples/heavy_test.jpg?raw=true)
