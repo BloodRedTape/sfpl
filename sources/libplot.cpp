@@ -317,7 +317,7 @@ struct ScientificDouble{
     double Exponent;
     double Mantissa;
 
-    inline ScientificDouble(double value){
+    ScientificDouble(double value){
         if(value == 0){
             Exponent = 0;
             Mantissa = 0;
@@ -390,11 +390,6 @@ bool IsRoundTwo(double number){
     return Fraction(number/10) < 0.0001;
 }
 
-struct TracePoint{
-    double x;
-    double y;
-};
-
 struct AxisRange{
     double Min = 0;
     double Max = 0;
@@ -405,61 +400,13 @@ struct PlotRange{
     AxisRange y{};
 };
 
-struct PlotConfig{
-    PlotRange Range;
-    double DataRangeX;
-    double DataRangeY;
-    Pixel TintColor;
-    Pixel BackgroundColor;
-    Pixel TextColor;
-    int LineWidth;
-    int SeparatorWidth;
-    int MarginX;
-    int MarginY;
-    int PlotSizeX;
-    int PlotSizeY; 
-    float TitleFontSize;
-    float AxisFontSize;
-    float AxisNameFontSize;
-    float XFontMargin;
-    float YFontMargin;
+struct TracePoint{
+    double x;
+    double y;
 };
 
-bool InRange(double value, const AxisRange &range){
-    return value <= range.Max && value >= range.Min;
-}
-
-TracePoint MapToPlotCoords(const PlotConfig &config, double x, double y){
-    return {
-        config.PlotSizeX * ((x - config.Range.x.Min)/config.DataRangeX),
-        config.PlotSizeY * ((y - config.Range.y.Min)/config.DataRangeY)
-    };
-}
-
-PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count){
-    PlotRange result = {
-        {
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::min()
-        },
-        {
-            std::numeric_limits<double>::max(),
-            std::numeric_limits<double>::min()
-        }
-    };
-    for(size_t i = 0; i<traces_count; ++i){
-        for(size_t j = 0; j<traces[i].Count; j++){
-            if(traces[i].x[j] < result.x.Min)
-                result.x.Min = traces[i].x[j];
-            if(traces[i].y[j] < result.y.Min)
-                result.y.Min = traces[i].y[j];    
-            if(traces[i].x[j] > result.x.Max)
-                result.x.Max = traces[i].x[j];    
-            if(traces[i].y[j] > result.y.Max)
-                result.y.Max = traces[i].y[j];    
-        }
-    }
-    return result;
+double Slope(TracePoint p0, TracePoint p1){
+    return (p1.y-p0.y)/(p1.x-p0.x);
 }
 
 double RoundByFirstDigit(double number){
@@ -489,105 +436,204 @@ double GetNiceStep(const AxisRange &true_range, const AxisRange &aligned){
     return (true_range.Max - true_range.Min) / 5;
 }
 
-PlotRange MakeBestAlignment(const PlotRange &range){
-    PlotRange best_range = range;
-    AlignPair(best_range.x.Min, best_range.x.Max);
-    AlignPair(best_range.y.Min, best_range.y.Max);
-    return best_range;
+bool InRange(double value, const AxisRange &range){
+    return value <= range.Max && value >= range.Min;
 }
 
-double Slope(TracePoint p0, TracePoint p1){
-    return (p1.y-p0.y)/(p1.x-p0.x);
+struct Plotter{
+    Image Canvas;
+    PlotRange Range;
+    double RangeLengthX;
+    double RangeLengthY;
+
+    int ContentMarginX;
+    int ContentMarginY;
+    int ContentSizeX;
+    int ContentSizeY;
+
+    float TitleFontSize;
+    float RCFontSize;
+    float AxisFontSize;
+
+    int LineWidth;
+    int GridLineWidth;
+
+    Pixel FrameColor             = {255, 255, 255, 255};
+    Pixel ContentBackgroundColor = {245, 252, 237, 255};
+    Pixel TextColor              = {80,  80,  80,  255};
+
+    Plotter(const PlotRange &range, size_t width, size_t height);
+
+    Plotter(const Plotter &other) = delete;
+
+    Plotter &operator=(const Plotter &other) = delete;
+
+    TracePoint MapToPlotRange(double x, double y);
+
+    void DrawContentBackground();
+
+    void DrawContentFrame();
+
+    void DrawTitle(const char *title);
+
+    void DrawXAxisName(const char *name, size_t y_bottom_margin);
+
+    void DrawYAxisName(const char *name, size_t x_left_margin);
+
+    void DrawTraceFragment(TracePoint p0_plot_range, TracePoint p1_plot_range, Pixel color);
+
+    void DrawTraceName(const char *name, size_t y_plot_range, Pixel color);
+
+    void DrawGridRow(size_t x_plot_range, const char *text);
+
+    void DrawGridColumn(size_t y_plot_range, const char *text);
+
+    void DrawGrid(const libplot::TraceData traces[], size_t traces_count, const char *x_axis_name, const char *y_axis_name);
+
+    void DrawContent(const libplot::TraceData traces[], size_t traces_count);
+
+    bool WriteTo(const char *filename);
+};
+
+Plotter::Plotter(const PlotRange &range, size_t width, size_t height):
+    Canvas(width, height),
+    Range(range),
+    RangeLengthX(range.x.Max - range.x.Min),
+    RangeLengthY(range.y.Max - range.y.Min),
+
+    ContentMarginX(width*0.1),
+    ContentMarginY(height * 0.1),
+    ContentSizeX(width - ContentMarginX*2),
+    ContentSizeY(height - ContentMarginY*2),
+
+    TitleFontSize(std::min(ContentMarginX, ContentMarginY) * 0.6),
+    RCFontSize(TitleFontSize / 2),
+    AxisFontSize(RCFontSize * 1.3),
+
+    LineWidth(1),
+    GridLineWidth(LineWidth + 2)
+{
+    DrawContentBackground();
+    DrawContentFrame();
 }
 
-void DrawPlotTitle(Image &background, const PlotConfig &config, const char *title){
-    background.DrawString(config.TextColor, title, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
+
+TracePoint Plotter::MapToPlotRange(double x, double y){
+    return {
+        ContentSizeX * ((x - Range.x.Min)/RangeLengthX),
+        ContentSizeY * ((y - Range.y.Min)/RangeLengthY)
+    };
 }
 
-void DrawPlotBackground(Image &background, const PlotConfig &config, Pixel color){
-    background.DrawRect(color, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
+void Plotter::DrawContentBackground(){
+    Canvas.DrawRect(ContentBackgroundColor, ContentMarginX, ContentMarginY, ContentSizeX, ContentSizeY);
 }
 
-void DrawPlotBackgroundFrame(Image &background, const PlotConfig &config){
-    background.DrawRect(config.BackgroundColor, 0, 0, background.Width, config.MarginY);
-    background.DrawRect(config.BackgroundColor, 0, background.Height - config.MarginY, background.Width, config.MarginY);
+void Plotter::DrawContentFrame(){
+    Canvas.DrawRect(FrameColor, 0, 0,                              Canvas.Width, ContentMarginY);
+    Canvas.DrawRect(FrameColor, 0, Canvas.Height - ContentMarginY, Canvas.Width, ContentMarginY);
 
-    background.DrawRect(config.BackgroundColor, 0, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
-    background.DrawRect(config.BackgroundColor, background.Width - config.MarginX, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
+    Canvas.DrawRect(FrameColor, 0,                             ContentMarginY, ContentMarginX, Canvas.Height - ContentMarginY*2);
+    Canvas.DrawRect(FrameColor, Canvas.Width - ContentMarginX, ContentMarginY, ContentMarginX, Canvas.Height - ContentMarginY*2);
 }
 
-void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title, const char *x_axis_name, const char *y_axis_name){
-    DrawPlotBackgroundFrame(background, config);
-    DrawPlotBackground(background, config, config.TintColor);
+void Plotter::DrawTitle(const char *title){
+    Canvas.DrawString(TextColor, title, TitleFontSize, ContentMarginX, Canvas.Height - ContentMarginY*0.7);
+}
 
-    PlotRange range = config.Range;
+void Plotter::DrawXAxisName(const char *name, size_t y_bottom_margin){
+    auto name_length = default_font.GetStringLength(name, AxisFontSize);
+    Canvas.DrawString(TextColor, name, AxisFontSize, Canvas.Width/2 - name_length/2, y_bottom_margin);
+}
+
+void Plotter::DrawYAxisName(const char *name, size_t x_left_margin){
+    auto name_length = default_font.GetStringLength(name, AxisFontSize);
+    Canvas.DrawString(TextColor, name, AxisFontSize, x_left_margin, Canvas.Height/2 - name_length/2, true);
+}
+
+void Plotter::DrawTraceFragment(TracePoint p0_plot_range, TracePoint p1_plot_range, Pixel color){
+    Canvas.DrawLine(
+        color,
+        LineWidth,
+        ContentMarginX + int(p0_plot_range.x),
+        ContentMarginY + int(p0_plot_range.y),
+        ContentMarginX + int(p1_plot_range.x),
+        ContentMarginY + int(p1_plot_range.y)
+    );
+}
+
+void Plotter::DrawTraceName(const char *name, size_t y_plot_range, Pixel color){
+    Canvas.DrawString(color, name, RCFontSize, Canvas.Width - ContentMarginX*0.9, y_plot_range + ContentMarginY);
+}
+
+void Plotter::DrawGridRow(size_t x_plot_range, const char *text){
+    auto text_length = default_font.GetStringLength(text, RCFontSize);
+
+    Canvas.DrawRect(FrameColor, ContentMarginX + x_plot_range, ContentMarginY, GridLineWidth, Canvas.Height - ContentMarginY*2);
+    Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX + x_plot_range - text_length/2, ContentMarginY - RCFontSize);
+}
+
+void Plotter::DrawGridColumn(size_t y_plot_range, const char *text){
+    auto text_length = default_font.GetStringLength(text, RCFontSize);
+
+    Canvas.DrawRect(FrameColor, ContentMarginX, ContentMarginY + y_plot_range,  Canvas.Width - ContentMarginX*2, GridLineWidth);
+    Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX*0.96 - text_length, ContentMarginY + y_plot_range - RCFontSize/5);
+}
+
+void Plotter::DrawGrid(const libplot::TraceData traces[], size_t traces_count, const char *x_axis_name, const char *y_axis_name){
+    PlotRange range = Range;
 
     AlignPair(range.x.Min, range.x.Max, 0);
     AlignPair(range.y.Min, range.y.Max, 0);
 
-    auto x_step = GetNiceStep(config.Range.x, range.x);
-    auto y_step = GetNiceStep(config.Range.y, range.y);
+    auto x_step = GetNiceStep(Range.x, range.x);
+    auto y_step = GetNiceStep(Range.y, range.y);
 
     for(auto i = 0; i <= std::ceil((range.x.Max - range.x.Min) / x_step); i++){
         auto current = range.x.Min + i*x_step;
-        if(InRange(current, config.Range.x)){
-
-            TracePoint cross = MapToPlotCoords(config, current, 0);
+        if(InRange(current, Range.x)){
+            TracePoint cross = MapToPlotRange(current, 0);
 
             std::string label = Shorten(current);
-            background.DrawRect(config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.SeparatorWidth, background.Height - config.MarginY*2);
-            background.DrawString(config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
+
+            DrawGridRow(cross.x, label.c_str());
         }
     }
 
     size_t max_axis_text_size = 0; 
     for(auto i = 0; i <= std::ceil((range.y.Max - range.y.Min) / y_step); i++){
         auto current = range.y.Min + i*y_step;
-        if(InRange(current, config.Range.y)){
-            TracePoint cross = MapToPlotCoords(config, 0, current);
+        if(InRange(current, Range.y)){
+            TracePoint cross = MapToPlotRange(0, current);
 
             std::string label = Shorten(current);
 
-            size_t text_length = default_font.GetStringLength(label.c_str(), config.AxisFontSize);
+            DrawGridColumn(cross.y, label.c_str());
 
+            size_t text_length = default_font.GetStringLength(label.c_str(), RCFontSize);
             if(text_length > max_axis_text_size) max_axis_text_size = text_length;
-
-            background.DrawRect(config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.SeparatorWidth);
-            background.DrawString(config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - text_length, config.MarginY + cross.y - config.AxisFontSize / 4);
         }
     }
 
-    DrawPlotTitle(background, config, title);
-
-    background.DrawString(config.TextColor, y_axis_name, config.AxisNameFontSize, std::min(config.MarginX * 0.55, config.MarginX*0.92 - max_axis_text_size), background.Height/2-default_font.GetStringLength(y_axis_name, config.AxisNameFontSize)/2, true);
-    background.DrawString(config.TextColor, x_axis_name, config.AxisNameFontSize, background.Width/2-default_font.GetStringLength(x_axis_name, config.AxisNameFontSize)/2, config.MarginY * 0.35);
+    DrawYAxisName(y_axis_name, std::min(ContentMarginX * 0.55, ContentMarginX*0.92 - max_axis_text_size));
+    DrawXAxisName(x_axis_name, ContentMarginY * 0.35);
 }
 
-void DrawPlotLine(Image &background, const PlotConfig &config, TracePoint p0, TracePoint p1, Pixel color){
-    background.DrawLine(color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
-}
-
-void DrawTraceName(Image &background, const PlotConfig &config, const ::libplot::TraceData &trace, Pixel color){
-    TracePoint last_trace = MapToPlotCoords(config, trace.x[trace.Count - 1], trace.y[trace.Count - 1]);
-
-    background.DrawString(color, trace.TraceName, config.AxisFontSize, background.Width - config.MarginX*0.9, last_trace.y + config.MarginY);
-}
-
-void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplot::TraceData traces[], size_t traces_count){
+void Plotter::DrawContent(const libplot::TraceData traces[], size_t traces_count){
     PaletteGenerator colors;
 
     for(size_t i = 0; i<traces_count; ++i){
         Pixel color = colors.NextColor();
         
-        TracePoint p0 = MapToPlotCoords(config, traces[i].x[0], traces[i].y[0]);
+        TracePoint p0 = MapToPlotRange(traces[i].x[0], traces[i].y[0]);
 
         for(size_t j = 0; j < traces[i].Count - 1;++j){
-            TracePoint p1 = MapToPlotCoords(config, traces[i].x[j + 1], traces[i].y[j + 1]); 
+            TracePoint p1 = MapToPlotRange(traces[i].x[j + 1], traces[i].y[j + 1]); 
 
             auto initial_slope = Slope(p0, p1);
 
             for(size_t k = j+2; k<traces[i].Count - 1; ++k){
-                TracePoint potential = MapToPlotCoords(config, traces[i].x[k], traces[i].y[k]);
+                TracePoint potential = MapToPlotRange(traces[i].x[k], traces[i].y[k]);
 
                 if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
                     p1 = potential;
@@ -595,68 +641,90 @@ void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplo
                 }else break;
             }
 
-            DrawPlotLine(background, config, p0, p1, color);
+            DrawTraceFragment(p0, p1, color);
 
             p0 = p1;
         }
-        DrawTraceName(background, config, traces[i], color);
+
+        TracePoint p = MapToPlotRange(0, traces[i].y[traces[i].Count - 1]);
+
+        DrawTraceName(traces[i].TraceName, p.y, color);
     }
+}
+
+bool Plotter::WriteTo(const char *filename){
+    return Canvas.Write(filename);
+}
+
+PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count){
+    PlotRange result = {
+        {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::min()
+        },
+        {
+            std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::min()
+        }
+    };
+    for(size_t i = 0; i<traces_count; ++i){
+        for(size_t j = 0; j<traces[i].Count; j++){
+            if(traces[i].x[j] < result.x.Min)
+                result.x.Min = traces[i].x[j];
+            if(traces[i].y[j] < result.y.Min)
+                result.y.Min = traces[i].y[j];    
+            if(traces[i].x[j] > result.x.Max)
+                result.x.Max = traces[i].x[j];    
+            if(traces[i].y[j] > result.y.Max)
+                result.y.Max = traces[i].y[j];    
+        }
+    }
+    return result;
+}
+
+PlotRange MakeBestAlignment(const PlotRange &range){
+    PlotRange best_range = range;
+    AlignPair(best_range.x.Min, best_range.x.Max);
+    AlignPair(best_range.y.Min, best_range.y.Max);
+    return best_range;
 }
 
 namespace libplot{
 
 bool PlotBuilder::Trace(const TraceData traces[], size_t traces_count, const char *outfilepath, size_t width, size_t height, const char *title, const char *x_axis_name, const char *y_axis_name){
 #ifndef NDEBUG
-    Assert(traces != nullptr, "traces can't be nullptr");
-    Assert(traces_count != 0, "can't build a plot with zero traces");
-    Assert(outfilepath != nullptr, "outfilename can't be nullptr");
-    Assert(width >= 50, "Image Width can't be less then 50");
-    Assert(height >= 50, "Image Height can't be less then 50");
-    Assert(title != nullptr, "title can't be nullptr");
-    Assert(x_axis_name != nullptr, "x_axis_name can't be nullptr");
-    Assert(y_axis_name != nullptr, "y_axis_name can't be nullptr");
+    Assert(traces != nullptr,       "traces can't be nullptr");
+    Assert(traces_count != 0,       "can't build a plot with zero traces");
+    Assert(outfilepath != nullptr,  "outfilename can't be nullptr");
+    Assert(width >= 50,             "Image Width can't be less then 50");
+    Assert(height >= 50,            "Image Height can't be less then 50");
+    Assert(title != nullptr,        "title can't be nullptr");
+    Assert(x_axis_name != nullptr,  "x_axis_name can't be nullptr");
+    Assert(y_axis_name != nullptr,  "y_axis_name can't be nullptr");
 
     for(size_t i = 0; i<traces_count; ++i){
-        Assert(traces[i].Count >= 2, " Can't build a plot using less than two points");
-        Assert(traces[i].TraceName != nullptr,"TraceName should be a pointer to a valid string, if you want and empty one, assign \"\"");
-        Assert(traces[i].x != nullptr,"pointer to X array should be a valid non-null pointer");
-        Assert(traces[i].y != nullptr,"pointer to Y array should be a valid non-null pointer");
+        Assert(traces[i].Count >= 2,            " Can't build a plot using less than two points");
+        Assert(traces[i].TraceName != nullptr,  "TraceName should be a pointer to a valid string, if you want and empty one, assign \"\"");
+        Assert(traces[i].x != nullptr,          "pointer to X array should be a valid non-null pointer");
+        Assert(traces[i].y != nullptr,          "pointer to Y array should be a valid non-null pointer");
     }
 #endif
-
-    PlotConfig config;
-    config.Range           = MakeBestAlignment(GetPlotRange(traces, traces_count));
-    config.DataRangeX      = config.Range.x.Max - config.Range.x.Min;
-    config.DataRangeY      = config.Range.y.Max - config.Range.y.Min;
-    config.TintColor       = {245, 252, 237, 255};
-    config.BackgroundColor = {255, 255, 255, 255};
-    config.TextColor       = {80, 80, 80, 255};
-    config.LineWidth       = 1;
-    config.SeparatorWidth  = 3;
-    config.MarginX         = width * 0.1;
-    config.MarginY         = height * 0.1;
-    config.PlotSizeX       = width - config.MarginX * 2;
-    config.PlotSizeY       = height - config.MarginY * 2;
-    config.TitleFontSize   = std::min(config.MarginX, config.MarginY) * 0.6;
-    config.AxisFontSize    = config.TitleFontSize/2;
-    config.AxisNameFontSize= config.AxisFontSize * 1.3;
-    config.XFontMargin     = config.AxisFontSize * 2;
-    config.YFontMargin     = config.AxisFontSize* 1.05;
-
     constexpr float MinTraceDataRange = 0.0001;
 
-    if(std::abs(config.DataRangeX) < MinTraceDataRange || std::abs(config.DataRangeY) < MinTraceDataRange){
+    PlotRange range = MakeBestAlignment(GetPlotRange(traces, traces_count));
+
+    if(std::abs(range.x.Max - range.x.Min) < MinTraceDataRange || std::abs(range.y.Max - range.y.Min) < MinTraceDataRange){
         std::cerr << "[libplot]: can't build a plot, trace data range approaches zero\n";
         return false;
     }
 
-    Image background(width, height);
+    Plotter plotter(range, width, height);
 
-    DrawPlotFrame(background, config, title, x_axis_name, y_axis_name);
+    plotter.DrawTitle(title);
+    plotter.DrawGrid(traces, traces_count, x_axis_name, y_axis_name);
+    plotter.DrawContent(traces, traces_count);
 
-    DrawPlotContent(background, config, traces, traces_count);
-
-    return background.Write(outfilepath);
+    return plotter.WriteTo(outfilepath);
 }
 
 }//namespace libplot
