@@ -405,7 +405,7 @@ struct TracePoint{
     double y;
 };
 
-double Slope(TracePoint p0, TracePoint p1){
+double Slope(const TracePoint &p0, const TracePoint &p1){
     return (p1.y-p0.y)/(p1.x-p0.x);
 }
 
@@ -668,13 +668,13 @@ PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count)
         }
     };
     for(size_t i = 0; i<traces_count; ++i){
+        if(traces[i].x[0] < result.x.Min)
+            result.x.Min = traces[i].x[0];
+        if(traces[i].x[traces[i].Count - 1] > result.x.Max)
+            result.x.Max = traces[i].x[traces[i].Count - 1];    
         for(size_t j = 0; j<traces[i].Count; j++){
-            if(traces[i].x[j] < result.x.Min)
-                result.x.Min = traces[i].x[j];
             if(traces[i].y[j] < result.y.Min)
                 result.y.Min = traces[i].y[j];    
-            if(traces[i].x[j] > result.x.Max)
-                result.x.Max = traces[i].x[j];    
             if(traces[i].y[j] > result.y.Max)
                 result.y.Max = traces[i].y[j];    
         }
@@ -707,6 +707,9 @@ bool PlotBuilder::Trace(const TraceData traces[], size_t traces_count, const cha
         Assert(traces[i].TraceName != nullptr,  "TraceName should be a pointer to a valid string, if you want and empty one, assign \"\"");
         Assert(traces[i].x != nullptr,          "pointer to X array should be a valid non-null pointer");
         Assert(traces[i].y != nullptr,          "pointer to Y array should be a valid non-null pointer");
+        for(size_t j = 0; j<traces[i].Count - 1; ++j){
+            Assert(traces[i].x[j] < traces[i].x[j + 1], "elements in X array should be in increasing order");
+        }
     }
 #endif
     constexpr float MinTraceDataRange = 0.0001;
