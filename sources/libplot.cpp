@@ -157,29 +157,21 @@ struct Image{
 
     ~Image();
 
-    inline Pixel &Get(size_t x, size_t y){
-        y = Height - 1 - y;
-        return *(Pixels + Width * y + x);
-    }
+    Pixel &Get(size_t x, size_t y);
 
-    inline const Pixel &Get(size_t x, size_t y)const{
-        return const_cast<Image*>(this)->Get(x, y);
-    }
+    const Pixel &Get(size_t x, size_t y)const;
 
-    inline void DrawPixel(const Pixel &pixel, size_t x, size_t y){
-        if(x < Width && y < Height)
-            Get(x, y) = pixel;
-    }
+    void DrawPixel(const Pixel &pixel, size_t x, size_t y);
 
-    inline void BlendPixel(const Pixel &src, size_t x, size_t y){
-        if(x < Width && y < Height){
-            auto& dst = Get(x, y);
-            dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
-            dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
-            dst.Blue  = dst.Blue  * (1 - src.Alpha/255.f) + src.Blue  * (src.Alpha/255.f);
-            dst.Alpha = dst.Alpha * (1 - src.Alpha/255.f) + src.Alpha;
-        }
-    }
+    void BlendPixel(const Pixel &src, size_t x, size_t y);
+
+    void DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y);
+
+    void DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
+
+    void DrawRect(const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height);
+
+    void DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically = false);
 
     void Fill(const Pixel &pixel);
 
@@ -202,6 +194,100 @@ Image::~Image(){
     std::free(Pixels);
 }
 
+Pixel &Image::Get(size_t x, size_t y){
+    y = Height - 1 - y;
+    return *(Pixels + Width * y + x);
+}
+
+const Pixel &Image::Get(size_t x, size_t y)const{
+    return const_cast<Image*>(this)->Get(x, y);
+}
+
+void Image::DrawPixel(const Pixel &pixel, size_t x, size_t y){
+    if(x < Width && y < Height)
+        Get(x, y) = pixel;
+}
+
+void Image::BlendPixel(const Pixel &src, size_t x, size_t y){
+    if(x < Width && y < Height){
+        auto& dst = Get(x, y);
+        dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
+        dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
+        dst.Blue  = dst.Blue  * (1 - src.Alpha/255.f) + src.Blue  * (src.Alpha/255.f);
+        dst.Alpha = dst.Alpha * (1 - src.Alpha/255.f) + src.Alpha;
+    }
+}
+
+void Image::DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y){
+    for(size_t i = 0; i <= radius; ++i){
+        size_t res = std::sqrt(radius * radius - i*i);
+        for(size_t j = 0; j <= res; ++j){
+            Get(x+i, y+j) = color;
+            Get(x-i, y+j) = color;
+            Get(x+i, y-j) = color;
+            Get(x-i, y-j) = color;
+        }
+    }
+}
+
+void Image::DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
+    if(y1 < y0){
+        std::swap(y0, y1);
+        std::swap(x0, x1);
+    }
+
+    long long dx = (long long)x1 - (long long)x0;
+    long long dy = y1-y0; // swap quarantees no negative numbers
+
+    float k = (dx != 0) ? float(dy)/float(llabs(dx)) : dy;
+
+    int side = dx > 0 ? 1 : -1;
+
+    auto line = [k](size_t x) -> size_t{
+        return k*x;
+    };
+
+    size_t y_lim = y1-y0;
+    for(long x = 0;x <= llabs(dx); x += 1){
+        size_t y = line(x);
+        size_t y_max = line(x + 1);
+        for(;(y < y_max && y <= y_lim) || y == y_max; ++y)
+            DrawPoint(pixel, width, x0 + x*side, y0 + y);
+    }
+}
+
+void Image::DrawRect(const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
+    auto x_limit = std::min(Width, width + x0);
+    auto y_limit = std::min(Height, height + y0);
+    for(size_t j = y0; j<y_limit; ++j)
+    for(size_t i = x0; i<x_limit; ++i)
+        Get(i, j) = pixel;
+}
+
+void Image::DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically){    
+    int offset = 0;
+    for(size_t i = 0; i<strlen(string); ++i){
+        if(string[i] == ' '){
+            offset += font_size * 0.3;
+            continue;
+        }
+
+        int width, height, xoffset, yoffset;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+
+        if(!bitmap)continue;
+
+        for(int y = 0; y < height; y++)
+        for(int x = 0; x < width;  x++)
+            BlendPixel(
+                {color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, 
+                x0 + (!vertically)*(offset + x)       + vertically*(-abs(yoffset) + y), 
+                y0 + (!vertically)*(abs(yoffset) - y) + vertically*(offset + x)
+            );
+        offset += width + font_size * 0.03;
+        stbtt_FreeBitmap(bitmap, nullptr);
+    }
+}
 
 void Image::Fill(const Pixel &pixel){
     size_t max = Width*Height;
@@ -225,95 +311,6 @@ bool Image::Write(const char *filepath){
     }
 
     return true;
-}
-
-void DrawOpaquePoint(Image &image, const Pixel &color, size_t radius, size_t x, size_t y){
-    for(size_t i = 0; i <= radius; ++i){
-        size_t res = std::sqrt(radius * radius - i*i);
-        for(size_t j = 0; j <= res; ++j){
-            image.Get(x+i, y+j) = color;
-            image.Get(x-i, y+j) = color;
-            image.Get(x+i, y-j) = color;
-            image.Get(x-i, y-j) = color;
-        }
-    }
-}
-
-void DrawOpaqueLine(Image &image, const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
-    if(y1 < y0){
-        std::swap(y0, y1);
-        std::swap(x0, x1);
-    }
-
-    long long dx = (long long)x1 - (long long)x0;
-    long long dy = y1-y0; // swap quarantees no negative numbers
-
-    float k = (dx != 0) ? float(dy)/float(llabs(dx)) : dy;
-
-    int side = dx > 0 ? 1 : -1;
-
-    auto line = [k](size_t x) -> size_t{
-        return k*x;
-    };
-
-    size_t y_lim = y1-y0;
-    for(long x = 0;x <= llabs(dx); x += 1){
-        size_t y = line(x);
-        size_t y_max = line(x + 1);
-        for(;(y < y_max && y <= y_lim) || y == y_max; ++y)
-            DrawOpaquePoint(image, pixel, width, x0 + x*side, y0 + y);
-    }
-}
-
-void DrawOpaqueRect(Image &image, const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
-    auto x_limit = std::min(image.Width, width + x0);
-    auto y_limit = std::min(image.Height, height + y0);
-    for(size_t j = y0; j<y_limit; ++j)
-    for(size_t i = x0; i<x_limit; ++i)
-        image.Get(i, j) = pixel;
-}
-
-void DrawStringHorizontally(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
-    int offset = 0;
-    for(size_t i = 0; i<strlen(string); ++i){
-        if(string[i] == ' '){
-            offset += font_size * 0.3;
-            continue;
-        }
-
-        int width, height, xoffset, yoffset;
-        unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
-
-        if(!bitmap)continue;
-
-        for(int y = 0; y < height; y++)
-        for(int x = 0; x < width;  x++)
-            image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, x0 + offset + x, y0 + abs(yoffset) - y);
-        offset += width + font_size * 0.03;
-        stbtt_FreeBitmap(bitmap, nullptr);
-    }
-}
-
-
-void DrawStringVertically(Image &image, const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0){    
-    int offset = 0;
-    for(size_t i = 0; i<strlen(string); ++i){
-        if(string[i] == ' '){
-            offset += font_size * 0.3;
-            continue;
-        }
-
-        int width, height, xoffset, yoffset;
-        unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
-
-        if(!bitmap)continue;
-
-        for(int y = 0; y < height; y++)
-        for(int x = 0; x < width;  x++)
-            image.BlendPixel({color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, x0 - abs(yoffset) + y, y0 + offset + x);
-        offset += width + font_size * 0.03;
-        stbtt_FreeBitmap(bitmap, nullptr);
-    }
 }
 
 struct ScientificDouble{
@@ -504,19 +501,19 @@ double Slope(TracePoint p0, TracePoint p1){
 }
 
 void DrawPlotTitle(Image &background, const PlotConfig &config, const char *title){
-    DrawStringHorizontally(background, config.TextColor, title, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
+    background.DrawString(config.TextColor, title, config.TitleFontSize, config.MarginX, background.Height - config.MarginY*0.7);
 }
 
 void DrawPlotBackground(Image &background, const PlotConfig &config, Pixel color){
-    DrawOpaqueRect(background, color, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
+    background.DrawRect(color, config.MarginX, config.MarginY, config.PlotSizeX, config.PlotSizeY);
 }
 
 void DrawPlotBackgroundFrame(Image &background, const PlotConfig &config){
-    DrawOpaqueRect(background, config.BackgroundColor, 0, 0, background.Width, config.MarginY);
-    DrawOpaqueRect(background, config.BackgroundColor, 0, background.Height - config.MarginY, background.Width, config.MarginY);
+    background.DrawRect(config.BackgroundColor, 0, 0, background.Width, config.MarginY);
+    background.DrawRect(config.BackgroundColor, 0, background.Height - config.MarginY, background.Width, config.MarginY);
 
-    DrawOpaqueRect(background, config.BackgroundColor, 0, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
-    DrawOpaqueRect(background, config.BackgroundColor, background.Width - config.MarginX, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
+    background.DrawRect(config.BackgroundColor, 0, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
+    background.DrawRect(config.BackgroundColor, background.Width - config.MarginX, config.MarginY, config.MarginX, background.Height-config.MarginY*2);
 }
 
 void DrawPlotFrame(Image &background, const PlotConfig &config, const char *title, const char *x_axis_name, const char *y_axis_name){
@@ -538,8 +535,8 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
             TracePoint cross = MapToPlotCoords(config, current, 0);
 
             std::string label = Shorten(current);
-            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.SeparatorWidth, background.Height - config.MarginY*2);
-            DrawStringHorizontally(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
+            background.DrawRect(config.BackgroundColor, config.MarginX + cross.x, config.MarginY, config.SeparatorWidth, background.Height - config.MarginY*2);
+            background.DrawString(config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX + cross.x - default_font.GetStringLength(label.c_str(), config.AxisFontSize)/2.0, config.MarginY - config.YFontMargin);
         }
     }
 
@@ -555,25 +552,25 @@ void DrawPlotFrame(Image &background, const PlotConfig &config, const char *titl
 
             if(text_length > max_axis_text_size) max_axis_text_size = text_length;
 
-            DrawOpaqueRect(background, config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.SeparatorWidth);
-            DrawStringHorizontally(background, config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - text_length, config.MarginY + cross.y - config.AxisFontSize / 4);
+            background.DrawRect(config.BackgroundColor, config.MarginX, config.MarginY + cross.y,  background.Width - config.MarginX*2, config.SeparatorWidth);
+            background.DrawString(config.TextColor, label.c_str(), config.AxisFontSize, config.MarginX*0.96 - text_length, config.MarginY + cross.y - config.AxisFontSize / 4);
         }
     }
 
     DrawPlotTitle(background, config, title);
 
-    DrawStringVertically(background, config.TextColor, y_axis_name, config.AxisNameFontSize, std::min(config.MarginX * 0.55, config.MarginX*0.92 - max_axis_text_size), background.Height/2-default_font.GetStringLength(y_axis_name, config.AxisNameFontSize)/2);
-    DrawStringHorizontally(background, config.TextColor, x_axis_name, config.AxisNameFontSize, background.Width/2-default_font.GetStringLength(x_axis_name, config.AxisNameFontSize)/2, config.MarginY * 0.35);
+    background.DrawString(config.TextColor, y_axis_name, config.AxisNameFontSize, std::min(config.MarginX * 0.55, config.MarginX*0.92 - max_axis_text_size), background.Height/2-default_font.GetStringLength(y_axis_name, config.AxisNameFontSize)/2, true);
+    background.DrawString(config.TextColor, x_axis_name, config.AxisNameFontSize, background.Width/2-default_font.GetStringLength(x_axis_name, config.AxisNameFontSize)/2, config.MarginY * 0.35);
 }
 
 void DrawPlotLine(Image &background, const PlotConfig &config, TracePoint p0, TracePoint p1, Pixel color){
-    DrawOpaqueLine(background, color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
+    background.DrawLine(color, config.LineWidth, config.MarginX + int(p0.x), config.MarginY + int(p0.y), config.MarginX + int(p1.x), config.MarginY + int(p1.y));
 }
 
 void DrawTraceName(Image &background, const PlotConfig &config, const ::libplot::TraceData &trace, Pixel color){
     TracePoint last_trace = MapToPlotCoords(config, trace.x[trace.Count - 1], trace.y[trace.Count - 1]);
 
-    DrawStringHorizontally(background, color, trace.TraceName, config.AxisFontSize, background.Width - config.MarginX*0.9, last_trace.y + config.MarginY);
+    background.DrawString(color, trace.TraceName, config.AxisFontSize, background.Width - config.MarginX*0.9, last_trace.y + config.MarginY);
 }
 
 void DrawPlotContent(Image &background, const PlotConfig &config, const ::libplot::TraceData traces[], size_t traces_count){
