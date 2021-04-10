@@ -17,7 +17,7 @@ P.S. It is better not to open font.cpp :-)
 using namespace libplot;
 
 int main(){
-    // Instead of regular array you can use any array-like data structures 
+    // Instead of regular array any array-like data structure can be used
     // including std::vector, std::array and others
     double x[] = {0, 1, 2, 3, 4,  5};
     double y[] = {0, 1, 4, 9, 16, 25};
@@ -34,7 +34,7 @@ int main(){
 Expected result:
 ![](https://github.com/E1Hephaestus/libplot/blob/master/examples/parabola.jpg?raw=true)
 
-### You can pass array of TraceData in order to plot multiple traces
+### Array of TraceData can be passed in order to plot multiple traces
 ```c++
 
     TraceData traces[SIZE];
@@ -42,7 +42,7 @@ Expected result:
     PlotBuilder::Trace(traces, "parabola.jpg");
 
 ```
-### You can provide each trace with name
+### Each trace can be provided with a name
 
 ```c++
     TraceData trace; 
@@ -51,7 +51,7 @@ Expected result:
 
 ```
 
-### You can pass output image width and height, plot title and axis names
+### Output image width and height, plot title and axis names can be passed as function parameters
 By default they are empty.
 
 ```c++
@@ -60,7 +60,7 @@ By default they are empty.
 
 ```
 
-### In the end you can get something like this
+### Combining this techniques can lead to something like this
 ***
 
 ![](https://github.com/E1Hephaestus/libplot/blob/master/examples/operations.png?raw=true)
