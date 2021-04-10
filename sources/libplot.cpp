@@ -318,7 +318,7 @@ struct ScientificDouble{
     double Mantissa;
 
     ScientificDouble(double value){
-        if(value == 0){
+        if(std::fabs(value) < 1e-15){
             Exponent = 0;
             Mantissa = 0;
             return;
