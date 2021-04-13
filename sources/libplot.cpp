@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <limits>
 #include <cmath>
+#include <algorithm>
 #include "libplot.hpp"
 
 #ifdef _MSC_VER
