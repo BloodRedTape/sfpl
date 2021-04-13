@@ -6,8 +6,8 @@
 namespace libplot{
 
 struct TraceData{
-    double *x = nullptr;
-    double *y = nullptr;
+    const double *x = nullptr;
+    const double *y = nullptr;
     size_t Count = 0;
     const char *TraceName = "";
 };
