@@ -63,7 +63,7 @@ By default they are empty.
 ### Combining this techniques can lead to something like this
 ***
 
-![](https://github.com/E1Hephaestus/libplot/blob/master/examples/operations.png?raw=true)
+![](https://github.com/E1Hephaestus/libplot/blob/master/examples/sort.jpg?raw=true)
 
 ## Original library intention was to plot operation benchmarks
 
