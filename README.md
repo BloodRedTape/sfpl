@@ -1,10 +1,9 @@
-# libplot
-## Simple and fast c++ plot library
+# SFPL - Simple and Fast Plotting Library 
 ### Png, jpg and tga output image formats are supported
 ***
 ## Usage
 
-To use library copy libplot.cpp, libplot.hpp and font.cpp inside your project and feed them to the compiler. 
+To use library copy sfpl.cpp, sfpl.hpp and font.cpp inside your project and feed them to the compiler. 
 
 P.S. It is better not to open font.cpp :-)
 
@@ -12,9 +11,9 @@ P.S. It is better not to open font.cpp :-)
 
 ### Minimum amount of code to create a simple plot:
 ```c++
-#include "libplot.hpp"
+#include <sfpl.hpp>
 
-using namespace libplot;
+using namespace sfpl;
 
 int main(){
     // Instead of regular array any array-like data structure can be used
@@ -22,32 +21,32 @@ int main(){
     double x[] = {0, 1, 2, 3, 4,  5};
     double y[] = {0, 1, 4, 9, 16, 25};
 
-    TraceData trace; 
-    trace.x = &x[0]; // pointer to the first element of X array
-    trace.y = &y[0]; // pointer to the first element of Y array
-    trace.Count = 6; // elements count of X and Y arrays
+    DataSource source; 
+    source.X = &x[0]; // pointer to the first element of X array
+    source.Y = &y[0]; // pointer to the first element of Y array
+    source.Count = 6; // elements count of X and Y arrays
 
-    PlotBuilder::Trace(trace, "parabola.jpg");
+    PlotBuilder::Build(source, "parabola.jpg");
 }
 
 ```
 Expected result:
-![](https://github.com/E1Hephaestus/libplot/blob/master/examples/parabola.jpg?raw=true)
+![](https://github.com/E1Hephaestus/sfpl/blob/master/examples/parabola.jpg?raw=true)
 
-### Array of TraceData can be passed in order to plot multiple traces
+### Array of DataSource can be passed in order to plot multiple data sets
 ```c++
 
-    TraceData traces[SIZE];
+    DataSource sources[SIZE];
     //... code to fill traces array
-    PlotBuilder::Trace(traces, "parabola.jpg");
+    PlotBuilder::Build(sources, "parabola.jpg");
 
 ```
 ### Each trace can be provided with a name
 
 ```c++
-    TraceData trace; 
+    DataSource source; 
     //... code to fill trace structure
-    trace.Name = "Trace Name";
+    source.Name = "Source Name";
 
 ```
 
@@ -56,25 +55,32 @@ By default they are empty.
 
 ```c++
     //...
-    PlotBuilder::Trace(traces, "parabola.jpg", ImageWidth, ImageHeight, "PlotTitle", "XAxisName", "YAxisName");
+    OutputParameters params;
+    params.ImageWidth = 1280;
+    params.ImageHeight = 720;
+    params.PlotTitle = "PlotTitle";
+    params.XAxisName = "XAxisName";
+    params.YAxisName = "YAxisName";
+
+    PlotBuilder::Build(source, "parabola.jpg", params);
 
 ```
 
 ### Combining this techniques can lead to something like this
 ***
 
-![](https://github.com/E1Hephaestus/libplot/blob/master/examples/sort.jpg?raw=true)
+![](https://github.com/E1Hephaestus/sfpl/blob/master/examples/sort.jpg?raw=true)
 
 ## Original library intention was to plot operation benchmarks
 
 It can be done somehow like this
 
 ```c++
-#include "libplot.hpp"
+#include <sfpl.hpp>
 // https://github.com/E1Hephaestus/clock
 #include "clock.hpp"
 
-using namespace libplot;
+using namespace sfpl;
 
 void HeavyOperation(int n){
     ++n;
@@ -103,12 +109,19 @@ int main(){
         y[j] = time;
     }
 
-    TraceData trace;
-    trace.x = &x[0];
-    trace.y = &y[0];
-    trace.Count = BenchmarkSize;
+    OutputParameters params;
+    params.ImageWidth = 1280;
+    params.ImageHeight = 720;
+    params.PlotTitle = "Heavy Operation Test";
+    params.XAxisName = "Heavy operation size";
+    params.YAxisName = "Time [ns]";
 
-    PlotBuilder::Trace(trace, "heavy_test.jpg",1280, 720, "Heavy Operation Test", "Heavy operation size", "Time [ns]");
+    DataSource source;
+    source.X = &x[0];
+    source.Y = &y[0];
+    source.Count = BenchmarkSize;
+
+    PlotBuilder::Build(source, "heavy_test.jpg", params);
 }
 
 ```
@@ -116,13 +129,14 @@ int main(){
 Or in case you are a big STL fan
 ```c++
 #include <vector>
-#include "libplot.hpp"
+#include <sfpl.hpp>
 // https://github.com/E1Hephaestus/clock
 #include "clock.hpp"
 
-using namespace libplot;
+using namespace sfpl;
 
 void HeavyOperation(int n){
+    ++n;
     for(int i = 0; i<n; i++){
         char *array = new char[n*20];
         for(int j = 0; j<n*20; j++)
@@ -146,14 +160,22 @@ int main(){
         y.push_back(time);
     }
 
-    TraceData trace;
-    trace.x = &x[0];
-    trace.y = &y[0];
-    trace.Count = x.size();
+    OutputParameters params;
+    params.ImageWidth = 1280;
+    params.ImageHeight = 720;
+    params.PlotTitle = "Heavy Operation Test";
+    params.XAxisName = "Heavy operation size";
+    params.YAxisName = "Time [ns]";
 
-    PlotBuilder::Trace(trace, "heavy_test.jpg",1280, 720, "Heavy Operation Test", "Heavy operation size", "Time [ns]");
+    DataSource source;
+    source.X = &x[0];
+    source.Y = &y[0];
+    source.Count = x.size();
+
+    PlotBuilder::Build(source, "heavy_test.jpg", params);
 }
+
 ```
 
 Possible Result:
-![](https://github.com/E1Hephaestus/libplot/blob/master/examples/heavy_test.jpg?raw=true)
+![](https://github.com/E1Hephaestus/sfpl/blob/master/examples/heavy_test.jpg?raw=true)

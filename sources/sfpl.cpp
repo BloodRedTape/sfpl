@@ -6,7 +6,7 @@
 #include <limits>
 #include <cmath>
 #include <algorithm>
-#include "libplot.hpp"
+#include "sfpl.hpp"
 
 #ifdef _MSC_VER
     #define __FUNCTION__ __FUNCSIG__
@@ -227,7 +227,6 @@ struct Image{
     }
 
     void DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
-        width = 3;
 
         if(x1 < x0){
             std::swap(x0, x1);
@@ -350,18 +349,22 @@ struct Image{
         std::string str(filepath);
         std::string extension(&str[str.find_last_of('.') + 1]);
 
+        bool write_result = false;
         if(extension == "png"){
-            stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
+            write_result = stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
         }else if(extension == "jpg" || extension == "jpeg"){
-            stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
+            write_result = stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
         }else if(extension == "tga"){
-            stbi_write_tga(filepath, Width, Height, 4, Pixels);
+            write_result = stbi_write_tga(filepath, Width, Height, 4, Pixels);
         }else{
-            std::cerr << "Error: Unknown image extension of '" << filepath << "'\n";
+            std::cerr << "[SFPL]: Unknown image extension of '" << filepath << "'\n";
             return false;
         }
 
-        return true;
+        if(!write_result)
+            std::cerr << "[SFPL]: Can't save plot to " << filepath << "'\n";
+
+        return write_result;
     }
 };
 
@@ -531,8 +534,8 @@ public:
         RCFontSize(TitleFontSize / 2),
         AxisFontSize(RCFontSize * 1.3),
 
-        LineWidth(1),
-        GridLineWidth(LineWidth + 2)
+        LineWidth(3),
+        GridLineWidth(3)
     {
         DrawContentBackground();
         DrawContentFrame();
@@ -604,7 +607,7 @@ public:
         Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX*0.96 - text_length, ContentMarginY + y_plot_range - RCFontSize/5);
     }
 
-    void DrawGrid(const libplot::TraceData traces[], size_t traces_count, const char *x_axis_name, const char *y_axis_name){
+    void DrawGrid(const sfpl::DataSource sources[], size_t sources_count, const char *x_axis_name, const char *y_axis_name){
         PlotRange range = Range;
 
         AlignPair(range.x.Min, range.x.Max, 0);
@@ -643,23 +646,23 @@ public:
         DrawXAxisName(x_axis_name, ContentMarginY * 0.35);
     }
 
-    void DrawContent(const libplot::TraceData traces[], size_t traces_count){
+    void DrawContent(const sfpl::DataSource sources[], size_t sources_count){
         PaletteGenerator colors;
 
-        for(size_t i = 0; i<traces_count; ++i){
+        for(size_t i = 0; i<sources_count; ++i){
             Pixel color = colors.NextColor();
             
-            TracePoint p0 = MapToPlotRange(traces[i].x[0], traces[i].y[0]);
+            TracePoint p0 = MapToPlotRange(sources[i].X[0], sources[i].Y[0]);
 
-            for(size_t j = 0; j < traces[i].Count - 1;++j){
-                TracePoint p1 = MapToPlotRange(traces[i].x[j + 1], traces[i].y[j + 1]); 
+            for(size_t j = 0; j < sources[i].Count - 1;++j){
+                TracePoint p1 = MapToPlotRange(sources[i].X[j + 1], sources[i].Y[j + 1]); 
 
                 auto initial_slope = Slope(p0, p1);
 
-                for(size_t k = j+2; k<traces[i].Count - 1; ++k){
-                    TracePoint potential = MapToPlotRange(traces[i].x[k], traces[i].y[k]);
+                for(size_t k = j+2; k<sources[i].Count - 1; ++k){
+                    TracePoint potential = MapToPlotRange(sources[i].X[k], sources[i].Y[k]);
 
-                    if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
+                    if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05 || (std::max(potential.x - p0.x, 0.0) < LineWidth/2.f)){
                         p1 = potential;
                         ++j;
                     }else break;
@@ -670,9 +673,9 @@ public:
                 p0 = p1;
             }
 
-            TracePoint p = MapToPlotRange(0, traces[i].y[traces[i].Count - 1]);
+            TracePoint p = MapToPlotRange(0, sources[i].Y[sources[i].Count - 1]);
 
-            DrawTraceName(traces[i].TraceName, p.y, color);
+            DrawTraceName(sources[i].Name, p.y, color);
         }
     }
 
@@ -682,7 +685,7 @@ public:
 
 };
 
-PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count){
+PlotRange GetPlotRange(const ::sfpl::DataSource sources[], size_t sources_count){
     PlotRange result = {
         {
             std::numeric_limits<double>::max(),
@@ -693,16 +696,16 @@ PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count)
             std::numeric_limits<double>::min()
         }
     };
-    for(size_t i = 0; i<traces_count; ++i){
-        for(size_t j = 0; j<traces[i].Count; j++){
-            if(traces[i].y[j] < result.y.Min)
-                result.y.Min = traces[i].y[j];    
-            if(traces[i].y[j] > result.y.Max)
-                result.y.Max = traces[i].y[j];    
-            if(traces[i].x[j] < result.x.Min)
-                result.x.Min = traces[i].x[j];    
-            if(traces[i].x[j] > result.x.Max)
-                result.x.Max = traces[i].x[j];    
+    for(size_t i = 0; i<sources_count; ++i){
+        for(size_t j = 0; j<sources[i].Count; j++){
+            if(sources[i].Y[j] < result.y.Min)
+                result.y.Min = sources[i].Y[j];    
+            if(sources[i].Y[j] > result.y.Max)
+                result.y.Max = sources[i].Y[j];    
+            if(sources[i].X[j] < result.x.Min)
+                result.x.Min = sources[i].X[j];    
+            if(sources[i].X[j] > result.x.Max)
+                result.x.Max = sources[i].X[j];    
         }
     }
     return result;
@@ -715,40 +718,42 @@ PlotRange MakeBestAlignment(const PlotRange &range){
     return best_range;
 }
 
-namespace libplot{
+#define CHECK(condition, error_message) \
+if(!(condition)){ \
+    std::cerr << "[SFPL]: Can't build a plot: " << error_message << std::endl; \
+    return false; \
+}
 
-bool PlotBuilder::Trace(const TraceData traces[], size_t traces_count, const char *outfilepath, size_t width, size_t height, const char *title, const char *x_axis_name, const char *y_axis_name){
-#ifndef NDEBUG
-    Assert(traces != nullptr,       "traces can't be nullptr");
-    Assert(traces_count != 0,       "can't build a plot with zero traces");
-    Assert(outfilepath != nullptr,  "outfilename can't be nullptr");
-    Assert(width >= 50,             "Image Width can't be less then 50");
-    Assert(height >= 50,            "Image Height can't be less then 50");
-    Assert(title != nullptr,        "title can't be nullptr");
-    Assert(x_axis_name != nullptr,  "x_axis_name can't be nullptr");
-    Assert(y_axis_name != nullptr,  "y_axis_name can't be nullptr");
+namespace sfpl{
 
-    for(size_t i = 0; i<traces_count; ++i){
-        Assert(traces[i].Count >= 2,            " Can't build a plot using less than two points");
-        Assert(traces[i].TraceName != nullptr,  "TraceName should be a pointer to a valid string, if you want and empty one, assign \"\"");
-        Assert(traces[i].x != nullptr,          "pointer to X array should be a valid non-null pointer");
-        Assert(traces[i].y != nullptr,          "pointer to Y array should be a valid non-null pointer");
+bool PlotBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, const sfpl::OutputParameters &params){
+    CHECK(sources != nullptr,       "sources can't be nullptr");
+    CHECK(sources_count != 0,       "can't build a plot with zero sources");
+    CHECK(outfilepath != nullptr,  "outfilename can't be nullptr");
+    CHECK(params.ImageWidth >= 50,             "ImageWidth can't be less then 50");
+    CHECK(params.ImageHeight >= 50,            "ImageHeight can't be less then 50");
+    CHECK(params.PlotTitle != nullptr,        "PlotTitle can't be nullptr");
+    CHECK(params.XAxisName != nullptr,  "XAxisName can't be nullptr");
+    CHECK(params.YAxisName != nullptr,  "YAxisName can't be nullptr");
+
+    for(size_t i = 0; i<sources_count; ++i){
+        CHECK(sources[i].Count >= 2,            " Can't build a plot using less than two points");
+        CHECK(sources[i].Name != nullptr,  "Name should be a pointer to a valid string, if you want and empty one, assign \"\"");
+        CHECK(sources[i].X != nullptr,          "pointer to X array should be a valid non-null pointer");
+        CHECK(sources[i].Y != nullptr,          "pointer to Y array should be a valid non-null pointer");
     }
-#endif
     constexpr float MinTraceDataRange = 0.0001;
 
-    PlotRange range = MakeBestAlignment(GetPlotRange(traces, traces_count));
+    PlotRange range = MakeBestAlignment(GetPlotRange(sources, sources_count));
 
-    if(std::abs(range.x.Max - range.x.Min) < MinTraceDataRange || std::abs(range.y.Max - range.y.Min) < MinTraceDataRange){
-        std::cerr << "[libplot]: can't build a plot, trace data range approaches zero\n";
-        return false;
-    }
+    CHECK(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange, 
+        "can't build a plot, source data range approaches zero\n");
 
-    Plotter plotter(range, width, height);
+    Plotter plotter(range, params.ImageWidth, params.ImageHeight);
 
-    plotter.DrawTitle(title);
-    plotter.DrawGrid(traces, traces_count, x_axis_name, y_axis_name);
-    plotter.DrawContent(traces, traces_count);
+    plotter.DrawTitle(params.PlotTitle);
+    plotter.DrawGrid(sources, sources_count, params.XAxisName, params.YAxisName);
+    plotter.DrawContent(sources, sources_count);
 
     return plotter.WriteTo(outfilepath);
 }
