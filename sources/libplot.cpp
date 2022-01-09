@@ -78,42 +78,7 @@ extern "C" void stbtt_FreeBitmap(unsigned char *bitmap, void *userdata);
 extern "C" float stbtt_ScaleForPixelHeight(const stbtt_fontinfo *info, float pixels);
 extern "C" int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, int offset);
 
-struct FontInfo{
-    stbtt_fontinfo STBTTInfo;
-    unsigned char *FontBuffer = opensans_regular;
-
-    FontInfo(){
-        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
-            std::cerr << "[libplot]: Can't init font, it is probably broken. Consider redownloading font.cpp\n";
-            std::cerr << "[libplot]: library can't proceed\n";
-            std::cerr << "[libplot]: terminating...\n";
-            exit(0);
-        }
-    }
-
-    size_t GetStringLength(const char *string, size_t font_size);
-};
-
-FontInfo default_font;
-
-size_t FontInfo::GetStringLength(const char *string, size_t font_size){
-    size_t length = 0;
-    for(size_t i = 0; i<strlen(string); ++i){
-        if(string[i] == ' '){
-            length += font_size * 0.3;
-            continue;
-        }
-
-        int width, height, xoffset, yoffset;
-        unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
-
-        if(!bitmap)continue;
-
-        length += width + font_size * 0.03;
-        stbtt_FreeBitmap(bitmap, nullptr);
-    }
-    return length;
-}
+using u8 = uint8_t;
 
 template<typename T>
 T Clamp(T value, T min, T max){
@@ -124,25 +89,76 @@ float Rad(float deg){
     return deg / 180.f * 3.141;
 }
 
-unsigned char ToR8(float channel){
-    return (unsigned char)Clamp((int)std::round(channel * 255), 0, 255);
+u8 ToR8(float channel){
+    return (u8)Clamp((int)std::round(channel * 255), 0, 255);
 }
 
+struct FontInfo{
+private:
+    stbtt_fontinfo STBTTInfo;
+    unsigned char *FontBuffer = opensans_regular;
+public:
+    FontInfo(){
+        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
+            std::cerr << "[libplot]: Can't init font, it is probably broken. Consider redownloading font.cpp\n";
+            std::cerr << "[libplot]: library can't proceed\n";
+            std::cerr << "[libplot]: terminating...\n";
+            exit(0);
+        }
+    }
+
+    size_t GetStringLength(const char *string, size_t font_size){
+        size_t length = 0;
+        for(size_t i = 0; i<strlen(string); ++i){
+            if(string[i] == ' '){
+                length += font_size * 0.3;
+                continue;
+            }
+
+            int width, height, xoffset, yoffset;
+            unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+
+            if(!bitmap)continue;
+
+            length += width + font_size * 0.03;
+            stbtt_FreeBitmap(bitmap, nullptr);
+        }
+        return length;
+    }
+
+    operator const stbtt_fontinfo *()const{
+        return &STBTTInfo;
+    }
+
+}s_DefaultFont;
+
 struct Pixel{
-    unsigned char Red   = 0;
-    unsigned char Green = 0;
-    unsigned char Blue  = 0;
-    unsigned char Alpha = 255;
+    u8 Red   = 0;
+    u8 Green = 0;
+    u8 Blue  = 0;
+    u8 Alpha = 255;
+
+    Pixel() = default;
+
+    Pixel(u8 red, u8 green, u8 blue, u8 alpha = 255):
+        Red(red),
+        Green(green),
+        Blue(blue),
+        Alpha(alpha)
+    {}
 };
 
 class PaletteGenerator{
+    static Pixel s_Colors[7];
 private:
     size_t m_Counter = 0;
 public:
-    Pixel NextColor();
+    Pixel NextColor(){
+        return s_Colors[m_Counter++ % (sizeof(s_Colors)/sizeof(Pixel))];
+    }
 };
 
-Pixel Colors[]={
+Pixel PaletteGenerator::s_Colors[7]={
     {51, 234, 66, 255},
     {51, 118, 234, 255},
     {234, 51, 51, 255},
@@ -152,233 +168,203 @@ Pixel Colors[]={
     {51, 213, 234, 255}
 };
 
-Pixel PaletteGenerator::NextColor(){
-    return Colors[m_Counter++ % (sizeof(Colors)/sizeof(Pixel))];
-}
-
 struct Image{
     Pixel *const Pixels;
     const size_t Width;
     const size_t Height;
 
-    Image(size_t width, size_t height);
 
-    Image(size_t width, size_t height, const Pixel &fill_color);
+    Image(size_t width, size_t height):
+        Pixels((Pixel*)std::malloc(sizeof(Pixel) * width * height)),
+        Width(width),
+        Height(height)
+    {}
 
-    Image(const Image &other) = delete;
-
-    Image &operator=(const Image &other) = delete;
-
-    ~Image();
-
-    Pixel &Get(size_t x, size_t y);
-
-    const Pixel &Get(size_t x, size_t y)const;
-
-    void DrawPixel(const Pixel &pixel, size_t x, size_t y);
-
-    void BlendPixel(const Pixel &src, size_t x, size_t y);
-
-    void DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y);
-
-    void DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1);
-
-    void DrawRect(const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height);
-
-    void DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically = false);
-
-    void Fill(const Pixel &pixel);
-
-    bool Write(const char *filepath);
-};
-
-Image::Image(size_t width, size_t height):
-    Pixels((Pixel*)std::malloc(sizeof(Pixel) * width * height)),
-    Width(width),
-    Height(height)
-{}
-
-Image::Image(size_t width, size_t height, const Pixel &fill_color):
-    Image(width, height)
-{
-    Fill(fill_color);
-}
-
-Image::~Image(){
-    std::free(Pixels);
-}
-
-Pixel &Image::Get(size_t x, size_t y){
-    y = Height - 1 - y;
-    return *(Pixels + Width * y + x);
-}
-
-const Pixel &Image::Get(size_t x, size_t y)const{
-    return const_cast<Image*>(this)->Get(x, y);
-}
-
-void Image::DrawPixel(const Pixel &pixel, size_t x, size_t y){
-    if(x < Width && y < Height)
-        Get(x, y) = pixel;
-}
-
-void Image::BlendPixel(const Pixel &src, size_t x, size_t y){
-    if(x < Width && y < Height){
-        auto& dst = Get(x, y);
-        dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
-        dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
-        dst.Blue  = dst.Blue  * (1 - src.Alpha/255.f) + src.Blue  * (src.Alpha/255.f);
-        dst.Alpha = dst.Alpha * (1 - src.Alpha/255.f) + src.Alpha;
+    Image(size_t width, size_t height, const Pixel &fill_color):
+        Image(width, height)
+    {
+        Fill(fill_color);
     }
-}
 
-void Image::DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y){
-    for(size_t i = 0; i <= radius; ++i){
-        size_t res = std::sqrt(radius * radius - i*i);
-        for(size_t j = 0; j <= res; ++j){
-            Get(x+i, y+j) = color;
-            Get(x-i, y+j) = color;
-            Get(x+i, y-j) = color;
-            Get(x-i, y-j) = color;
+    ~Image(){
+        std::free(Pixels);
+    }
+
+    Pixel &Get(size_t x, size_t y){
+        y = Height - 1 - y;
+        return *(Pixels + Width * y + x);
+    }
+
+    const Pixel &Get(size_t x, size_t y)const{
+        return const_cast<Image*>(this)->Get(x, y);
+    }
+
+    void DrawPixel(const Pixel &pixel, size_t x, size_t y){
+        if(x < Width && y < Height)
+            Get(x, y) = pixel;
+    }
+
+    void BlendPixel(const Pixel &src, size_t x, size_t y){
+        if(x < Width && y < Height){
+            auto& dst = Get(x, y);
+            dst.Red   = dst.Red   * (1 - src.Alpha/255.f) + src.Red   * (src.Alpha/255.f);
+            dst.Green = dst.Green * (1 - src.Alpha/255.f) + src.Green * (src.Alpha/255.f);
+            dst.Blue  = dst.Blue  * (1 - src.Alpha/255.f) + src.Blue  * (src.Alpha/255.f);
+            dst.Alpha = dst.Alpha * (1 - src.Alpha/255.f) + src.Alpha;
         }
     }
-}
 
-void Image::DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
-    width = 3;
-
-    if(x1 < x0){
-        std::swap(x0, x1);
-        std::swap(y0, y1);
+    void DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y){
+        for(size_t i = 0; i <= radius; ++i){
+            size_t res = std::sqrt(radius * radius - i*i);
+            for(size_t j = 0; j <= res; ++j){
+                Get(x+i, y+j) = color;
+                Get(x-i, y+j) = color;
+                Get(x+i, y-j) = color;
+                Get(x-i, y-j) = color;
+            }
+        }
     }
 
-    const auto ToAlpha = [](float length_to_line, float half_width) -> float{
-        const float solid_boundary = 0.4;
-        const float smooth_length = 1.f - solid_boundary; 
+    void DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
+        width = 3;
 
-        const float normalized_length = length_to_line / half_width;
+        if(x1 < x0){
+            std::swap(x0, x1);
+            std::swap(y0, y1);
+        }
 
-        if(normalized_length > solid_boundary)
-            return std::min(1.f - std::pow((normalized_length - solid_boundary)/smooth_length, 1), 1.0);
-        return 1.f;
-    };
+        const auto ToAlpha = [](float length_to_line, float half_width) -> float{
+            const float solid_boundary = 0.4;
+            const float smooth_length = 1.f - solid_boundary; 
 
-    const auto ToColor = [](Pixel pixel, float normalized_alpha) -> Pixel{
-        const float combined_alpha = (pixel.Alpha/255.f * normalized_alpha);
+            const float normalized_length = length_to_line / half_width;
 
-        return {
-            pixel.Red,
-            pixel.Green,
-            pixel.Blue,
-            ToR8(combined_alpha)
+            if(normalized_length > solid_boundary)
+                return std::min(1.f - std::pow((normalized_length - solid_boundary)/smooth_length, 1), 1.0);
+            return 1.f;
         };
-    };
 
-    const long long dx = (long long)x1 - x0;
-    const long long dy = (long long)y1 - y0;
-    const float half_width = std::floor(width/2.f);
+        const auto ToColor = [](Pixel pixel, float normalized_alpha) -> Pixel{
+            const float combined_alpha = (pixel.Alpha/255.f * normalized_alpha);
 
-    if(std::abs(dy) <= 1){
-        y0 = std::max(y0, y1);
-        
-        for(long y = -half_width; y <= half_width; y++){
-            for(long x = 0; x < dx; x++){
-                float length_to_line = y;
+            return {
+                pixel.Red,
+                pixel.Green,
+                pixel.Blue,
+                ToR8(combined_alpha)
+            };
+        };
 
-                Pixel color = ToColor(pixel, ToAlpha(length_to_line, half_width));
+        const long long dx = (long long)x1 - x0;
+        const long long dy = (long long)y1 - y0;
+        const float half_width = std::floor(width/2.f);
 
-                const long fx = x0 + x;
+        if(std::abs(dy) <= 1){
+            y0 = std::max(y0, y1);
+            
+            for(long y = -half_width; y <= half_width; y++){
+                for(long x = 0; x < dx; x++){
+                    float length_to_line = y;
+
+                    Pixel color = ToColor(pixel, ToAlpha(length_to_line, half_width));
+
+                    const long fx = x0 + x;
+                    const long fy = y0 + y;
+
+                    BlendPixel(color, fx, fy);
+                }
+            }
+            return;
+        }
+
+        const int y_dir = dy >= 0 ? 1 : -1;
+        const float k = float(dy)/dx;
+        const float line_slope = atan2(std::abs(dy), dx);
+        const float line_normal = Rad(90) - line_slope;
+
+        const float pass_width = std::abs(width / cos(line_normal));
+
+
+        for(long y = 0; y != dy + y_dir; y += y_dir){
+            const float sx = y / k - pass_width/2.f;
+            const float ex = y / k + pass_width/2.f;
+            const float mx = y / k;
+
+            for(long x = std::round(sx); x <= std::round(ex); x++){
+                const float point_length_to_line = std::abs(x - mx) * cos(line_normal);
+                const float normalized_alpha = ToAlpha(point_length_to_line, width/2.f);
+
+                Pixel color = ToColor(pixel, normalized_alpha);
+
+                const long fx = x0 + Clamp(float(x), -half_width, dx + half_width);
                 const long fy = y0 + y;
 
                 BlendPixel(color, fx, fy);
             }
         }
-        return;
     }
 
-    const int y_dir = dy >= 0 ? 1 : -1;
-    const float k = float(dy)/dx;
-    const float line_slope = atan2(std::abs(dy), dx);
-    const float line_normal = Rad(90) - line_slope;
+    void DrawRect(const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
+        auto x_limit = std::min(Width, width + x0);
+        auto y_limit = std::min(Height, height + y0);
+        for(size_t j = y0; j<y_limit; ++j)
+        for(size_t i = x0; i<x_limit; ++i)
+            Get(i, j) = pixel;
+    }
 
-    const float pass_width = std::abs(width / cos(line_normal));
+    void DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically = false){    
+        int offset = 0;
+        for(size_t i = 0; i<strlen(string); ++i){
+            if(string[i] == ' '){
+                offset += font_size * 0.3;
+                continue;
+            }
 
+            int width, height, xoffset, yoffset;
+            u8 *bitmap = stbtt_GetCodepointBitmap(s_DefaultFont, 0, stbtt_ScaleForPixelHeight(s_DefaultFont, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
 
-    for(long y = 0; y != dy + y_dir; y += y_dir){
-        const float sx = y / k - pass_width/2.f;
-        const float ex = y / k + pass_width/2.f;
-        const float mx = y / k;
+            if(!bitmap)continue;
 
-        for(long x = std::round(sx); x <= std::round(ex); x++){
-            const float point_length_to_line = std::abs(x - mx) * cos(line_normal);
-            const float normalized_alpha = ToAlpha(point_length_to_line, width/2.f);
-
-            Pixel color = ToColor(pixel, normalized_alpha);
-
-            const long fx = x0 + Clamp(float(x), -half_width, dx + half_width);
-            const long fy = y0 + y;
-
-            BlendPixel(color, fx, fy);
+            for(int y = 0; y < height; y++){
+                for(int x = 0; x < width;  x++){
+                    BlendPixel(
+                        {color.Red, color.Green, color.Blue, (u8)(color.Alpha * (bitmap[y * width + x]/255.f))}, 
+                        x0 + (!vertically)*(offset + x)       + vertically*(-abs(yoffset) + y), 
+                        y0 + (!vertically)*(abs(yoffset) - y) + vertically*(offset + x)
+                    );
+                }
+            }
+            offset += width + font_size * 0.03;
+            stbtt_FreeBitmap(bitmap, nullptr);
         }
     }
-}
 
-void Image::DrawRect(const Pixel &pixel, size_t x0, size_t y0, size_t width, size_t height){
-    auto x_limit = std::min(Width, width + x0);
-    auto y_limit = std::min(Height, height + y0);
-    for(size_t j = y0; j<y_limit; ++j)
-    for(size_t i = x0; i<x_limit; ++i)
-        Get(i, j) = pixel;
-}
+    void Fill(const Pixel &pixel){
+        size_t max = Width*Height;
+        for(size_t i = 0; i<max; ++i)
+            Pixels[i] = pixel;
+    }
 
-void Image::DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically){    
-    int offset = 0;
-    for(size_t i = 0; i<strlen(string); ++i){
-        if(string[i] == ' '){
-            offset += font_size * 0.3;
-            continue;
+    bool Write(const char *filepath){
+        std::string str(filepath);
+        std::string extension(&str[str.find_last_of('.') + 1]);
+
+        if(extension == "png"){
+            stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
+        }else if(extension == "jpg" || extension == "jpeg"){
+            stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
+        }else if(extension == "tga"){
+            stbi_write_tga(filepath, Width, Height, 4, Pixels);
+        }else{
+            std::cerr << "Error: Unknown image extension of '" << filepath << "'\n";
+            return false;
         }
 
-        int width, height, xoffset, yoffset;
-        unsigned char *bitmap = stbtt_GetCodepointBitmap(&default_font.STBTTInfo, 0, stbtt_ScaleForPixelHeight(&default_font.STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
-
-        if(!bitmap)continue;
-
-        for(int y = 0; y < height; y++)
-        for(int x = 0; x < width;  x++)
-            BlendPixel(
-                {color.Red, color.Green, color.Blue, (unsigned char)(color.Alpha * (bitmap[y * width + x]/255.f))}, 
-                x0 + (!vertically)*(offset + x)       + vertically*(-abs(yoffset) + y), 
-                y0 + (!vertically)*(abs(yoffset) - y) + vertically*(offset + x)
-            );
-        offset += width + font_size * 0.03;
-        stbtt_FreeBitmap(bitmap, nullptr);
+        return true;
     }
-}
+};
 
-void Image::Fill(const Pixel &pixel){
-    size_t max = Width*Height;
-    for(size_t i = 0; i<max; ++i)
-        Pixels[i] = pixel;
-}
-
-bool Image::Write(const char *filepath){
-    std::string str(filepath);
-    std::string extension(&str[str.find_last_of('.') + 1]);
-
-    if(extension == "png"){
-        stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
-    }else if(extension == "jpg" || extension == "jpeg"){
-        stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
-    }else if(extension == "tga"){
-        stbi_write_tga(filepath, Width, Height, 4, Pixels);
-    }else{
-        std::cerr << "Error: Unknown image extension of '" << filepath << "'\n";
-        return false;
-    }
-
-    return true;
-}
 
 struct ScientificDouble{
     double Exponent;
@@ -408,7 +394,7 @@ long IntegerDigits(double number){
     return i;
 }
 
-char PostfixTable[] = {
+const char s_PostfixTable[] = {
     0,
     'K',
     'M',
@@ -425,8 +411,8 @@ std::string Shorten(double n){
     char postfix = 0;
     ScientificDouble value(n);
 
-    if(value.Mantissa > 0 && value.Mantissa/3 < sizeof(PostfixTable)){
-        postfix = PostfixTable[(size_t)value.Mantissa/3];
+    if(value.Mantissa > 0 && value.Mantissa/3 < sizeof(s_PostfixTable)){
+        postfix = s_PostfixTable[(size_t)value.Mantissa/3];
         value.Mantissa = size_t(value.Mantissa)%3;
     }else if(value.Mantissa < -8){
         value = ScientificDouble(0);
@@ -507,221 +493,194 @@ bool InRange(double value, const AxisRange &range){
     return value <= range.Max && value >= range.Min;
 }
 
-struct Plotter{
+class Plotter{
+private:
     Image Canvas;
-    PlotRange Range;
-    double RangeLengthX;
-    double RangeLengthY;
+    const PlotRange Range;
+    const double RangeLengthX;
+    const double RangeLengthY;
 
-    int ContentMarginX;
-    int ContentMarginY;
-    int ContentSizeX;
-    int ContentSizeY;
+    const int ContentMarginX;
+    const int ContentMarginY;
+    const int ContentSizeX;
+    const int ContentSizeY;
 
-    float TitleFontSize;
-    float RCFontSize;
-    float AxisFontSize;
+    const float TitleFontSize;
+    const float RCFontSize;
+    const float AxisFontSize;
 
-    int LineWidth;
-    int GridLineWidth;
+    const int LineWidth;
+    const int GridLineWidth;
 
-    Pixel FrameColor             = {255, 255, 255, 255};
-    Pixel ContentBackgroundColor = {245, 252, 237, 255};
-    Pixel TextColor              = {80,  80,  80,  255};
+    const Pixel FrameColor             = {255, 255, 255, 255};
+    const Pixel ContentBackgroundColor = {245, 252, 237, 255};
+    const Pixel TextColor              = {80,  80,  80,  255};
+public:
+    Plotter(const PlotRange &range, size_t width, size_t height):
+        Canvas(width, height),
+        Range(range),
+        RangeLengthX(range.x.Max - range.x.Min),
+        RangeLengthY(range.y.Max - range.y.Min),
 
-    Plotter(const PlotRange &range, size_t width, size_t height);
+        ContentMarginX(width*0.1),
+        ContentMarginY(height * 0.1),
+        ContentSizeX(width - ContentMarginX*2),
+        ContentSizeY(height - ContentMarginY*2),
+
+        TitleFontSize(std::min(ContentMarginX, ContentMarginY) * 0.6),
+        RCFontSize(TitleFontSize / 2),
+        AxisFontSize(RCFontSize * 1.3),
+
+        LineWidth(1),
+        GridLineWidth(LineWidth + 2)
+    {
+        DrawContentBackground();
+        DrawContentFrame();
+    }
 
     Plotter(const Plotter &other) = delete;
 
     Plotter &operator=(const Plotter &other) = delete;
 
-    TracePoint MapToPlotRange(double x, double y);
-
-    void DrawContentBackground();
-
-    void DrawContentFrame();
-
-    void DrawTitle(const char *title);
-
-    void DrawXAxisName(const char *name, size_t y_bottom_margin);
-
-    void DrawYAxisName(const char *name, size_t x_left_margin);
-
-    void DrawTraceFragment(TracePoint p0_plot_range, TracePoint p1_plot_range, Pixel color);
-
-    void DrawTraceName(const char *name, size_t y_plot_range, Pixel color);
-
-    void DrawGridRow(size_t x_plot_range, const char *text);
-
-    void DrawGridColumn(size_t y_plot_range, const char *text);
-
-    void DrawGrid(const libplot::TraceData traces[], size_t traces_count, const char *x_axis_name, const char *y_axis_name);
-
-    void DrawContent(const libplot::TraceData traces[], size_t traces_count);
-
-    bool WriteTo(const char *filename);
-};
-
-Plotter::Plotter(const PlotRange &range, size_t width, size_t height):
-    Canvas(width, height),
-    Range(range),
-    RangeLengthX(range.x.Max - range.x.Min),
-    RangeLengthY(range.y.Max - range.y.Min),
-
-    ContentMarginX(width*0.1),
-    ContentMarginY(height * 0.1),
-    ContentSizeX(width - ContentMarginX*2),
-    ContentSizeY(height - ContentMarginY*2),
-
-    TitleFontSize(std::min(ContentMarginX, ContentMarginY) * 0.6),
-    RCFontSize(TitleFontSize / 2),
-    AxisFontSize(RCFontSize * 1.3),
-
-    LineWidth(1),
-    GridLineWidth(LineWidth + 2)
-{
-    DrawContentBackground();
-    DrawContentFrame();
-}
-
-
-TracePoint Plotter::MapToPlotRange(double x, double y){
-    return {
-        ContentSizeX * ((x - Range.x.Min)/RangeLengthX),
-        ContentSizeY * ((y - Range.y.Min)/RangeLengthY)
-    };
-}
-
-void Plotter::DrawContentBackground(){
-    Canvas.DrawRect(ContentBackgroundColor, ContentMarginX, ContentMarginY, ContentSizeX, ContentSizeY);
-}
-
-void Plotter::DrawContentFrame(){
-    Canvas.DrawRect(FrameColor, 0, 0,                              Canvas.Width, ContentMarginY);
-    Canvas.DrawRect(FrameColor, 0, Canvas.Height - ContentMarginY, Canvas.Width, ContentMarginY);
-
-    Canvas.DrawRect(FrameColor, 0,                             ContentMarginY, ContentMarginX, Canvas.Height - ContentMarginY*2);
-    Canvas.DrawRect(FrameColor, Canvas.Width - ContentMarginX, ContentMarginY, ContentMarginX, Canvas.Height - ContentMarginY*2);
-}
-
-void Plotter::DrawTitle(const char *title){
-    Canvas.DrawString(TextColor, title, TitleFontSize, ContentMarginX, Canvas.Height - ContentMarginY*0.7);
-}
-
-void Plotter::DrawXAxisName(const char *name, size_t y_bottom_margin){
-    auto name_length = default_font.GetStringLength(name, AxisFontSize);
-    Canvas.DrawString(TextColor, name, AxisFontSize, Canvas.Width/2 - name_length/2, y_bottom_margin);
-}
-
-void Plotter::DrawYAxisName(const char *name, size_t x_left_margin){
-    auto name_length = default_font.GetStringLength(name, AxisFontSize);
-    Canvas.DrawString(TextColor, name, AxisFontSize, x_left_margin, Canvas.Height/2 - name_length/2, true);
-}
-
-void Plotter::DrawTraceFragment(TracePoint p0_plot_range, TracePoint p1_plot_range, Pixel color){
-    Canvas.DrawLine(
-        color,
-        LineWidth,
-        ContentMarginX + int(p0_plot_range.x),
-        ContentMarginY + int(p0_plot_range.y),
-        ContentMarginX + int(p1_plot_range.x),
-        ContentMarginY + int(p1_plot_range.y)
-    );
-}
-
-void Plotter::DrawTraceName(const char *name, size_t y_plot_range, Pixel color){
-    Canvas.DrawString(color, name, RCFontSize, Canvas.Width - ContentMarginX*0.9, y_plot_range + ContentMarginY);
-}
-
-void Plotter::DrawGridRow(size_t x_plot_range, const char *text){
-    auto text_length = default_font.GetStringLength(text, RCFontSize);
-
-    Canvas.DrawRect(FrameColor, ContentMarginX + x_plot_range, ContentMarginY, GridLineWidth, Canvas.Height - ContentMarginY*2);
-    Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX + x_plot_range - text_length/2, ContentMarginY - RCFontSize);
-}
-
-void Plotter::DrawGridColumn(size_t y_plot_range, const char *text){
-    auto text_length = default_font.GetStringLength(text, RCFontSize);
-
-    Canvas.DrawRect(FrameColor, ContentMarginX, ContentMarginY + y_plot_range,  Canvas.Width - ContentMarginX*2, GridLineWidth);
-    Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX*0.96 - text_length, ContentMarginY + y_plot_range - RCFontSize/5);
-}
-
-void Plotter::DrawGrid(const libplot::TraceData traces[], size_t traces_count, const char *x_axis_name, const char *y_axis_name){
-    PlotRange range = Range;
-
-    AlignPair(range.x.Min, range.x.Max, 0);
-    AlignPair(range.y.Min, range.y.Max, 0);
-
-    auto x_step = GetNiceStep(Range.x, range.x);
-    auto y_step = GetNiceStep(Range.y, range.y);
-
-    for(auto i = 0; i <= std::ceil((range.x.Max - range.x.Min) / x_step); i++){
-        auto current = range.x.Min + i*x_step;
-        if(InRange(current, Range.x)){
-            TracePoint cross = MapToPlotRange(current, 0);
-
-            std::string label = Shorten(current);
-
-            DrawGridRow(cross.x, label.c_str());
-        }
+    TracePoint MapToPlotRange(double x, double y){
+        return {
+            ContentSizeX * ((x - Range.x.Min)/RangeLengthX),
+            ContentSizeY * ((y - Range.y.Min)/RangeLengthY)
+        };
     }
 
-    size_t max_axis_text_size = 0; 
-    for(auto i = 0; i <= std::ceil((range.y.Max - range.y.Min) / y_step); i++){
-        auto current = range.y.Min + i*y_step;
-        if(InRange(current, Range.y)){
-            TracePoint cross = MapToPlotRange(0, current);
-
-            std::string label = Shorten(current);
-
-            DrawGridColumn(cross.y, label.c_str());
-
-            size_t text_length = default_font.GetStringLength(label.c_str(), RCFontSize);
-            if(text_length > max_axis_text_size) max_axis_text_size = text_length;
-        }
+    void DrawContentBackground(){
+        Canvas.DrawRect(ContentBackgroundColor, ContentMarginX, ContentMarginY, ContentSizeX, ContentSizeY);
     }
 
-    DrawYAxisName(y_axis_name, std::min(ContentMarginX * 0.55, ContentMarginX*0.92 - max_axis_text_size));
-    DrawXAxisName(x_axis_name, ContentMarginY * 0.35);
-}
+    void DrawContentFrame(){
+        Canvas.DrawRect(FrameColor, 0, 0,                              Canvas.Width, ContentMarginY);
+        Canvas.DrawRect(FrameColor, 0, Canvas.Height - ContentMarginY, Canvas.Width, ContentMarginY);
 
-void Plotter::DrawContent(const libplot::TraceData traces[], size_t traces_count){
-    PaletteGenerator colors;
+        Canvas.DrawRect(FrameColor, 0,                             ContentMarginY, ContentMarginX, Canvas.Height - ContentMarginY*2);
+        Canvas.DrawRect(FrameColor, Canvas.Width - ContentMarginX, ContentMarginY, ContentMarginX, Canvas.Height - ContentMarginY*2);
+    }
 
-    for(size_t i = 0; i<traces_count; ++i){
-        Pixel color = colors.NextColor();
-        
-        TracePoint p0 = MapToPlotRange(traces[i].x[0], traces[i].y[0]);
+    void DrawTitle(const char *title){
+        Canvas.DrawString(TextColor, title, TitleFontSize, ContentMarginX, Canvas.Height - ContentMarginY*0.7);
+    }
 
-        for(size_t j = 0; j < traces[i].Count - 1;++j){
-            TracePoint p1 = MapToPlotRange(traces[i].x[j + 1], traces[i].y[j + 1]); 
+    void DrawXAxisName(const char *name, size_t y_bottom_margin){
+        auto name_length = s_DefaultFont.GetStringLength(name, AxisFontSize);
+        Canvas.DrawString(TextColor, name, AxisFontSize, Canvas.Width/2 - name_length/2, y_bottom_margin);
+    }
 
-            auto initial_slope = Slope(p0, p1);
+    void DrawYAxisName(const char *name, size_t x_left_margin){
+        auto name_length = s_DefaultFont.GetStringLength(name, AxisFontSize);
+        Canvas.DrawString(TextColor, name, AxisFontSize, x_left_margin, Canvas.Height/2 - name_length/2, true);
+    }
 
-            for(size_t k = j+2; k<traces[i].Count - 1; ++k){
-                TracePoint potential = MapToPlotRange(traces[i].x[k], traces[i].y[k]);
+    void DrawTraceFragment(TracePoint p0_plot_range, TracePoint p1_plot_range, Pixel color){
+        Canvas.DrawLine(
+            color,
+            LineWidth,
+            ContentMarginX + int(p0_plot_range.x),
+            ContentMarginY + int(p0_plot_range.y),
+            ContentMarginX + int(p1_plot_range.x),
+            ContentMarginY + int(p1_plot_range.y)
+        );
+    }
 
-                if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
-                    p1 = potential;
-                    ++j;
-                }else break;
+    void DrawTraceName(const char *name, size_t y_plot_range, Pixel color){
+        Canvas.DrawString(color, name, RCFontSize, Canvas.Width - ContentMarginX*0.9, y_plot_range + ContentMarginY);
+    }
+
+    void DrawGridRow(size_t x_plot_range, const char *text){
+        auto text_length = s_DefaultFont.GetStringLength(text, RCFontSize);
+
+        Canvas.DrawRect(FrameColor, ContentMarginX + x_plot_range, ContentMarginY, GridLineWidth, Canvas.Height - ContentMarginY*2);
+        Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX + x_plot_range - text_length/2, ContentMarginY - RCFontSize);
+    }
+
+    void DrawGridColumn(size_t y_plot_range, const char *text){
+        auto text_length = s_DefaultFont.GetStringLength(text, RCFontSize);
+
+        Canvas.DrawRect(FrameColor, ContentMarginX, ContentMarginY + y_plot_range,  Canvas.Width - ContentMarginX*2, GridLineWidth);
+        Canvas.DrawString(TextColor, text, RCFontSize, ContentMarginX*0.96 - text_length, ContentMarginY + y_plot_range - RCFontSize/5);
+    }
+
+    void DrawGrid(const libplot::TraceData traces[], size_t traces_count, const char *x_axis_name, const char *y_axis_name){
+        PlotRange range = Range;
+
+        AlignPair(range.x.Min, range.x.Max, 0);
+        AlignPair(range.y.Min, range.y.Max, 0);
+
+        auto x_step = GetNiceStep(Range.x, range.x);
+        auto y_step = GetNiceStep(Range.y, range.y);
+
+        for(auto i = 0; i <= std::ceil((range.x.Max - range.x.Min) / x_step); i++){
+            auto current = range.x.Min + i*x_step;
+            if(InRange(current, Range.x)){
+                TracePoint cross = MapToPlotRange(current, 0);
+
+                std::string label = Shorten(current);
+
+                DrawGridRow(cross.x, label.c_str());
+            }
+        }
+
+        size_t max_axis_text_size = 0; 
+        for(auto i = 0; i <= std::ceil((range.y.Max - range.y.Min) / y_step); i++){
+            auto current = range.y.Min + i*y_step;
+            if(InRange(current, Range.y)){
+                TracePoint cross = MapToPlotRange(0, current);
+
+                std::string label = Shorten(current);
+
+                DrawGridColumn(cross.y, label.c_str());
+
+                size_t text_length = s_DefaultFont.GetStringLength(label.c_str(), RCFontSize);
+                if(text_length > max_axis_text_size) max_axis_text_size = text_length;
+            }
+        }
+
+        DrawYAxisName(y_axis_name, std::min(ContentMarginX * 0.55, ContentMarginX*0.92 - max_axis_text_size));
+        DrawXAxisName(x_axis_name, ContentMarginY * 0.35);
+    }
+
+    void DrawContent(const libplot::TraceData traces[], size_t traces_count){
+        PaletteGenerator colors;
+
+        for(size_t i = 0; i<traces_count; ++i){
+            Pixel color = colors.NextColor();
+            
+            TracePoint p0 = MapToPlotRange(traces[i].x[0], traces[i].y[0]);
+
+            for(size_t j = 0; j < traces[i].Count - 1;++j){
+                TracePoint p1 = MapToPlotRange(traces[i].x[j + 1], traces[i].y[j + 1]); 
+
+                auto initial_slope = Slope(p0, p1);
+
+                for(size_t k = j+2; k<traces[i].Count - 1; ++k){
+                    TracePoint potential = MapToPlotRange(traces[i].x[k], traces[i].y[k]);
+
+                    if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05){
+                        p1 = potential;
+                        ++j;
+                    }else break;
+                }
+
+                DrawTraceFragment(p0, p1, color);
+
+                p0 = p1;
             }
 
-            DrawTraceFragment(p0, p1, color);
+            TracePoint p = MapToPlotRange(0, traces[i].y[traces[i].Count - 1]);
 
-            p0 = p1;
+            DrawTraceName(traces[i].TraceName, p.y, color);
         }
-
-        TracePoint p = MapToPlotRange(0, traces[i].y[traces[i].Count - 1]);
-
-        DrawTraceName(traces[i].TraceName, p.y, color);
     }
-}
 
-bool Plotter::WriteTo(const char *filename){
-    return Canvas.Write(filename);
-}
+    bool WriteTo(const char *filename){
+        return Canvas.Write(filename);
+    }
+
+};
 
 PlotRange GetPlotRange(const ::libplot::TraceData traces[], size_t traces_count){
     PlotRange result = {
