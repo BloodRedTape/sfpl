@@ -115,6 +115,19 @@ size_t FontInfo::GetStringLength(const char *string, size_t font_size){
     return length;
 }
 
+template<typename T>
+T Clamp(T value, T min, T max){
+    return std::max(std::min(value, max), min);
+}
+
+float Rad(float deg){
+    return deg / 180.f * 3.141;
+}
+
+unsigned char ToR8(float channel){
+    return (unsigned char)Clamp((int)std::round(channel * 255), 0, 255);
+}
+
 struct Pixel{
     unsigned char Red   = 0;
     unsigned char Green = 0;
@@ -232,28 +245,81 @@ void Image::DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y){
 }
 
 void Image::DrawLine(const Pixel &pixel, size_t width, size_t x0, size_t y0, size_t x1, size_t y1){
-    if(y1 < y0){
-        std::swap(y0, y1);
+    width = 3;
+
+    if(x1 < x0){
         std::swap(x0, x1);
+        std::swap(y0, y1);
     }
 
-    long long dx = (long long)x1 - (long long)x0;
-    long long dy = y1-y0; // swap quarantees no negative numbers
+    const auto ToAlpha = [](float length_to_line, float half_width) -> float{
+        const float solid_boundary = 0.4;
+        const float smooth_length = 1.f - solid_boundary; 
 
-    float k = (dx != 0) ? float(dy)/float(llabs(dx)) : dy;
+        const float normalized_length = length_to_line / half_width;
 
-    int side = dx > 0 ? 1 : -1;
-
-    auto line = [k](size_t x) -> size_t{
-        return k*x;
+        if(normalized_length > solid_boundary)
+            return std::min(1.f - std::pow((normalized_length - solid_boundary)/smooth_length, 1), 1.0);
+        return 1.f;
     };
 
-    size_t y_lim = y1-y0;
-    for(long x = 0;x <= llabs(dx); x += 1){
-        size_t y = line(x);
-        size_t y_max = line(x + 1);
-        for(;(y < y_max && y <= y_lim) || y == y_max; ++y)
-            DrawPoint(pixel, width, x0 + x*side, y0 + y);
+    const auto ToColor = [](Pixel pixel, float normalized_alpha) -> Pixel{
+        const float combined_alpha = (pixel.Alpha/255.f * normalized_alpha);
+
+        return {
+            pixel.Red,
+            pixel.Green,
+            pixel.Blue,
+            ToR8(combined_alpha)
+        };
+    };
+
+    const long long dx = (long long)x1 - x0;
+    const long long dy = (long long)y1 - y0;
+    const float half_width = std::floor(width/2.f);
+
+    if(std::abs(dy) <= 1){
+        y0 = std::max(y0, y1);
+        
+        for(long y = -half_width; y <= half_width; y++){
+            for(long x = 0; x < dx; x++){
+                float length_to_line = y;
+
+                Pixel color = ToColor(pixel, ToAlpha(length_to_line, half_width));
+
+                const long fx = x0 + x;
+                const long fy = y0 + y;
+
+                BlendPixel(color, fx, fy);
+            }
+        }
+        return;
+    }
+
+    const int y_dir = dy >= 0 ? 1 : -1;
+    const float k = float(dy)/dx;
+    const float line_slope = atan2(std::abs(dy), dx);
+    const float line_normal = Rad(90) - line_slope;
+
+    const float pass_width = std::abs(width / cos(line_normal));
+
+
+    for(long y = 0; y != dy + y_dir; y += y_dir){
+        const float sx = y / k - pass_width/2.f;
+        const float ex = y / k + pass_width/2.f;
+        const float mx = y / k;
+
+        for(long x = std::round(sx); x <= std::round(ex); x++){
+            const float point_length_to_line = std::abs(x - mx) * cos(line_normal);
+            const float normalized_alpha = ToAlpha(point_length_to_line, width/2.f);
+
+            Pixel color = ToColor(pixel, normalized_alpha);
+
+            const long fx = x0 + Clamp(float(x), -half_width, dx + half_width);
+            const long fy = y0 + y;
+
+            BlendPixel(color, fx, fy);
+        }
     }
 }
 
