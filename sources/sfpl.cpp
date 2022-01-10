@@ -262,7 +262,7 @@ struct Image{
         if(std::abs(dy) <= 1){
             y0 = std::max(y0, y1);
             
-            for(long y = -half_width; y <= half_width; y++){
+            for(long y = -half_width; y < half_width; y++){
                 for(long x = 0; x < dx; x++){
                     float length_to_line = y;
 
@@ -582,10 +582,10 @@ public:
         Canvas.DrawLine(
             color,
             LineWidth,
-            ContentMarginX + int(p0_plot_range.x),
-            ContentMarginY + int(p0_plot_range.y),
-            ContentMarginX + int(p1_plot_range.x),
-            ContentMarginY + int(p1_plot_range.y)
+            ContentMarginX + int(std::round(p0_plot_range.x)),
+            ContentMarginY + int(std::round(p0_plot_range.y)),
+            ContentMarginX + int(std::round(p1_plot_range.x)),
+            ContentMarginY + int(std::round(p1_plot_range.y))
         );
     }
 
@@ -662,7 +662,7 @@ public:
                 for(size_t k = j+2; k<sources[i].Count - 1; ++k){
                     TracePoint potential = MapToPlotRange(sources[i].X[k], sources[i].Y[k]);
 
-                    if(std::fabs(initial_slope - Slope(p1, potential)) < 0.05 || (std::max(potential.x - p0.x, 0.0) < LineWidth/2.f)){
+                    if(std::fabs(initial_slope - Slope(p1, potential)) < 0.1 || (std::max(potential.x - p0.x, 0.0) < LineWidth/2.f)){
                         p1 = potential;
                         ++j;
                     }else break;
