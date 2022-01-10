@@ -240,7 +240,7 @@ struct Image{
             const float normalized_length = length_to_line / half_width;
 
             if(normalized_length > solid_boundary)
-                return std::min(1.f - std::pow((normalized_length - solid_boundary)/smooth_length, 1), 1.0);
+                return std::min(1.0 - std::pow((normalized_length - solid_boundary)/smooth_length, 1), 1.0);
             return 1.f;
         };
 
