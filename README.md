@@ -31,7 +31,7 @@ int main(){
 
 ```
 Expected result:
-![](https://github.com/E1Hephaestus/sfpl/blob/master/examples/parabola.jpg?raw=true)
+![](https://github.com/BloodRedTape/sfpl/blob/master/examples/parabola.jpg?raw=true)
 
 ### Array of DataSource can be passed in order to plot multiple data sets
 ```c++
@@ -69,7 +69,7 @@ By default they are empty.
 ### Combining this techniques can lead to something like this
 ***
 
-![](https://github.com/E1Hephaestus/sfpl/blob/master/examples/sort.jpg?raw=true)
+![](https://github.com/BloodRedTape/sfpl/blob/master/examples/sort.jpg?raw=true)
 
 ## Original library intention was to plot operation benchmarks
 
@@ -77,7 +77,7 @@ It can be done somehow like this
 
 ```c++
 #include <sfpl.hpp>
-// https://github.com/E1Hephaestus/clock
+// https://github.com/BloodRedTape/clock
 #include "clock.hpp"
 
 using namespace sfpl;
@@ -178,4 +178,4 @@ int main(){
 ```
 
 Possible Result:
-![](https://github.com/E1Hephaestus/sfpl/blob/master/examples/heavy_test.jpg?raw=true)
+![](https://github.com/BloodRedTape/sfpl/blob/master/examples/heavy_test.jpg?raw=true)
