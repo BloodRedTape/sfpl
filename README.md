@@ -11,7 +11,7 @@ P.S. It is better not to open font.cpp :-)
 
 ### Minimum amount of code to create a simple plot:
 ```c++
-#include <sfpl.hpp>
+#include "sfpl.hpp"
 
 using namespace sfpl;
 
@@ -76,7 +76,7 @@ By default they are empty.
 It can be done somehow like this
 
 ```c++
-#include <sfpl.hpp>
+#include "sfpl.hpp"
 // https://github.com/BloodRedTape/clock
 #include "clock.hpp"
 
@@ -129,8 +129,8 @@ int main(){
 Or in case you are a big STL fan
 ```c++
 #include <vector>
-#include <sfpl.hpp>
-// https://github.com/E1Hephaestus/clock
+#include "sfpl.hpp"
+// https://github.com/BloodRedTape/clock
 #include "clock.hpp"
 
 using namespace sfpl;
