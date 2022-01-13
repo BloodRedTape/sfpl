@@ -170,14 +170,16 @@ struct Image{
         }
     }
 
-    void DrawPoint(const Pixel &color, size_t radius, size_t x, size_t y){
+    void DrawPoint(Pixel color, size_t radius, size_t x, size_t y){
         for(size_t i = 0; i <= radius; ++i){
             size_t res = std::sqrt(radius * radius - i*i);
             for(size_t j = 0; j <= res; ++j){
-                Get(x+i, y+j) = color;
-                Get(x-i, y+j) = color;
-                Get(x+i, y-j) = color;
-                Get(x-i, y-j) = color;
+                color.Alpha = ToR8(1.f - std::pow(sqrt(i * i + j * j) / radius, 3));
+
+                BlendPixel(color, x+i, y+j);
+                BlendPixel(color, x-i, y+j);
+                BlendPixel(color, x+i, y-j);
+                BlendPixel(color, x-i, y-j);
             }
         }
     }
