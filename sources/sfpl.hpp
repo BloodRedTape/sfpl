@@ -5,6 +5,11 @@
 
 namespace sfpl{
 
+struct ImageOutputParams{
+    size_t Width = 1280;
+    size_t Height = 720;
+};
+
 struct DataSource{
     const double *X = nullptr;
     const double *Y = nullptr;
@@ -12,30 +17,35 @@ struct DataSource{
     const char *Name = "";
 };
 
-struct OutputParameters{
-    size_t ImageWidth = 1280;
-    size_t ImageHeight = 720;
-    const char *PlotTitle = "";
+enum class LineStyle: int{
+    Lines        = 0x01,
+    Dots         = 0x02,
+    LinesAndDots = 0x03
+};
+
+struct LineChartStyle{
+    enum LineStyle LineStyle = LineStyle::Lines;
+    const char *ChartTitle = "";
     const char *XAxisName = "";
     const char *YAxisName = "";
 };
 
-struct PlotBuilder{
-    static bool Build(const DataSource &source, const char *outfilepath, const OutputParameters &params = {});
+struct LineChartBuilder{
+    static bool Build(const DataSource &source, const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {});
 
     template<size_t N>
-    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const OutputParameters &params = {});
+    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {});
 
-    static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, const OutputParameters &params = {});
+    static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, LineChartStyle style = {}, ImageOutputParams params = {});
 };
 
-inline bool PlotBuilder::Build(const DataSource &source, const char *outfilepath, const OutputParameters &params){
-    return Build(&source, 1, outfilepath, params);
+inline bool LineChartBuilder::Build(const DataSource &source, const char *outfilepath, const LineChartStyle &style, const ImageOutputParams &params){
+    return Build(&source, 1, outfilepath, style, params);
 }
 
 template<size_t N>
-inline bool PlotBuilder::Build(const DataSource (&sources)[N], const char *outfilepath, const OutputParameters &params){
-    return Build(sources, N, outfilepath, params);
+inline bool LineChartBuilder::Build(const DataSource (&sources)[N], const char *outfilepath, const LineChartStyle &style, const ImageOutputParams &params){
+    return Build(sources, N, outfilepath, style, params);
 }
 
 }//namespace sfpl::

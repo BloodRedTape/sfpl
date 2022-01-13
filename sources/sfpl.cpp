@@ -436,6 +436,7 @@ bool InRange(double value, const AxisRange &range){
 class Plotter{
 private:
     Image Canvas;
+    sfpl::LineStyle Style;
     const PlotRange Range;
     const double RangeLengthX;
     const double RangeLengthY;
@@ -456,8 +457,9 @@ private:
     const Pixel ContentBackgroundColor = {245, 252, 237, 255};
     const Pixel TextColor              = {80,  80,  80,  255};
 public:
-    Plotter(const PlotRange &range, size_t width, size_t height):
+    Plotter(const PlotRange &range, size_t width, size_t height, sfpl::LineStyle style):
         Canvas(width, height),
+        Style(style),
         Range(range),
         RangeLengthX(range.x.Max - range.x.Min),
         RangeLengthY(range.y.Max - range.y.Min),
@@ -516,14 +518,20 @@ public:
     }
 
     void DrawTraceFragment(TracePoint p0_plot_range, TracePoint p1_plot_range, Pixel color){
-        Canvas.DrawLine(
-            color,
-            LineWidth,
-            ContentMarginX + int(std::round(p0_plot_range.x)),
-            ContentMarginY + int(std::round(p0_plot_range.y)),
-            ContentMarginX + int(std::round(p1_plot_range.x)),
-            ContentMarginY + int(std::round(p1_plot_range.y))
-        );
+        if((int)Style & (int)sfpl::LineStyle::Lines){
+            Canvas.DrawLine(
+                color,
+                LineWidth,
+                ContentMarginX + int(std::round(p0_plot_range.x)),
+                ContentMarginY + int(std::round(p0_plot_range.y)),
+                ContentMarginX + int(std::round(p1_plot_range.x)),
+                ContentMarginY + int(std::round(p1_plot_range.y))
+            );
+        }
+        if((int)Style & (int)sfpl::LineStyle::Dots){
+            Canvas.DrawPoint(color, LineWidth + 1, ContentMarginX + int(std::round(p0_plot_range.x)), ContentMarginY + int(std::round(p0_plot_range.y)));
+            Canvas.DrawPoint(color, LineWidth + 1, ContentMarginX + int(std::round(p1_plot_range.x)), ContentMarginY + int(std::round(p1_plot_range.y)));
+        }
     }
 
     void DrawTraceName(const char *name, size_t y_plot_range, Pixel color){
@@ -663,7 +671,7 @@ if(!(condition)){ \
 
 namespace sfpl{
 
-bool PlotBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, const sfpl::OutputParameters &params){
+bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, sfpl::LineChartStyle style, sfpl::ImageOutputParams params){
     const char *const ErrorFunctionName = "LineChartBuilder::Build";
 
     if(sources == nullptr || sources_count == 0)
@@ -671,6 +679,14 @@ bool PlotBuilder::Build(const DataSource sources[], size_t sources_count, const 
 
     if(outfilepath == nullptr || outfilepath[0] == '\0')
         outfilepath = s_DefaultOutputFilepath;
+    
+    const size_t MinImageSize = 50;
+
+    if(params.Width < MinImageSize)
+        params.Width = MinImageSize;
+    
+    if(params.Height < MinImageSize)
+        params.Height = MinImageSize;
 
     for(size_t i = 0; i<sources_count; ++i){
         if(sources[i].Count < 2)
@@ -688,10 +704,10 @@ bool PlotBuilder::Build(const DataSource sources[], size_t sources_count, const 
     CHECK(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange, 
         "can't build a plot, source data range approaches zero\n");
 
-    Plotter plotter(range, params.ImageWidth, params.ImageHeight);
+    Plotter plotter(range, params.Width, params.Height, style.LineStyle);
 
-    plotter.DrawTitle(params.PlotTitle);
-    plotter.DrawGrid(sources, sources_count, params.XAxisName, params.YAxisName);
+    plotter.DrawTitle(style.ChartTitle);
+    plotter.DrawGrid(sources, sources_count, style.XAxisName, style.YAxisName);
     plotter.DrawContent(sources, sources_count);
 
     return plotter.WriteTo(outfilepath);
