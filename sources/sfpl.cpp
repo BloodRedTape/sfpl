@@ -29,57 +29,13 @@ void AssertFail(const char *assertion, const char *function,const char *message)
 #endif
 
 void AssertFail(const char *assertion, const char *function,const char *message){
-    std::cerr << "[libplot]: Assertion Failed" << std::endl;
+    std::cerr << "[SFPL]: Assertion Failed" << std::endl;
     std::cerr << "Function: " << function  << std::endl;
     std::cerr << "Expression: " << assertion << std::endl;
     std::cerr << "Message: " << message << std::endl;
     std::cerr << "Terminating..." << std::endl;
     exit(0);
 }
-
-extern unsigned char opensans_regular[];
-
-//stbi prototypes
-
-typedef struct
-{
-    unsigned char *data;
-    int cursor;
-    int size;
-} stbtt__buf;
-
-struct stbtt_fontinfo
-{
-    void           * userdata;
-    unsigned char  * data;              // pointer to .ttf file
-    int              fontstart;         // offset of start of font
-
-    int numGlyphs;                     // number of glyphs, needed for range checking
-
-    int loca,head,glyf,hhea,hmtx,kern,gpos,svg; // table locations as offset from start of .ttf
-    int index_map;                     // a cmap mapping for our chosen character encoding
-    int indexToLocFormat;              // format needed to map from glyph index to glyph
-
-    stbtt__buf cff;                    // cff font data
-    stbtt__buf charstrings;            // the charstring index
-    stbtt__buf gsubrs;                 // global charstring subroutines index
-    stbtt__buf subrs;                  // private charstring subroutines index
-    stbtt__buf fontdicts;              // array of font dicts
-    stbtt__buf fdselect;               // map from glyph to fontdict
-};
-
-extern "C" int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
-extern "C" int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
-extern "C" int stbi_write_tga(char const *filename, int w, int h, int comp, const void *data);
-extern "C" int stbi_write_jpg(char const *filename, int w, int h, int comp, const void *data, int quality);
-extern "C" int stbi_write_hdr(char const *filename, int w, int h, int comp, const float *data);
-
-
-extern "C" int stbtt_GetFontOffsetForIndex(const unsigned char *data, int index);
-extern "C" unsigned char *stbtt_GetCodepointBitmap(const stbtt_fontinfo *info, float scale_x, float scale_y, int codepoint, int *width, int *height, int *xoff, int *yoff);
-extern "C" void stbtt_FreeBitmap(unsigned char *bitmap, void *userdata);
-extern "C" float stbtt_ScaleForPixelHeight(const stbtt_fontinfo *info, float pixels);
-extern "C" int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, int offset);
 
 using u8 = uint8_t;
 
@@ -96,42 +52,23 @@ u8 ToR8(float channel){
     return (u8)Clamp((int)std::round(channel * 255), 0, 255);
 }
 
+
+struct stbtt_fontinfo;
+
 struct FontInfo{
 private:
-    stbtt_fontinfo STBTTInfo;
-    unsigned char *FontBuffer = opensans_regular;
+    stbtt_fontinfo *STBTTInfo = nullptr;
+    unsigned char *FontBuffer = nullptr;
 public:
-    FontInfo(){
-        if(!stbtt_InitFont(&STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
-            std::cerr << "[libplot]: Can't init font, it is probably broken. Consider redownloading font.cpp\n";
-            std::cerr << "[libplot]: library can't proceed\n";
-            std::cerr << "[libplot]: terminating...\n";
-            exit(0);
-        }
-    }
+    FontInfo();
 
-    size_t GetStringLength(const char *string, size_t font_size){
-        size_t length = 0;
-        for(size_t i = 0; i<strlen(string); ++i){
-            if(string[i] == ' '){
-                length += font_size * 0.3;
-                continue;
-            }
+    size_t GetStringLength(const char *string, size_t font_size);
 
-            int width, height, xoffset, yoffset;
-            unsigned char *bitmap = stbtt_GetCodepointBitmap(&STBTTInfo, 0, stbtt_ScaleForPixelHeight(&STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+	u8 *GetCodepointBitmap(float scale_x, float scale_y, int codepoint, int *width, int *height, int *xoff, int *yoff);
 
-            if(!bitmap)continue;
+	void FreeBitmap(unsigned char *bitmap, void *userdata);
 
-            length += width + font_size * 0.03;
-            stbtt_FreeBitmap(bitmap, nullptr);
-        }
-        return length;
-    }
-
-    operator const stbtt_fontinfo *()const{
-        return &STBTTInfo;
-    }
+	float ScaleForPixelHeight(float height);
 
 }s_DefaultFont;
 
@@ -324,7 +261,7 @@ struct Image{
             }
 
             int width, height, xoffset, yoffset;
-            u8 *bitmap = stbtt_GetCodepointBitmap(s_DefaultFont, 0, stbtt_ScaleForPixelHeight(s_DefaultFont, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+            u8 *bitmap = s_DefaultFont.GetCodepointBitmap(0, s_DefaultFont.ScaleForPixelHeight(font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
 
             if(!bitmap)continue;
 
@@ -338,7 +275,7 @@ struct Image{
                 }
             }
             offset += width + font_size * 0.03;
-            stbtt_FreeBitmap(bitmap, nullptr);
+            s_DefaultFont.FreeBitmap(bitmap, nullptr);
         }
     }
 
@@ -348,27 +285,8 @@ struct Image{
             Pixels[i] = pixel;
     }
 
-    bool Write(const char *filepath){
-        std::string str(filepath);
-        std::string extension(&str[str.find_last_of('.') + 1]);
-
-        bool write_result = false;
-        if(extension == "png"){
-            write_result = stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
-        }else if(extension == "jpg" || extension == "jpeg"){
-            write_result = stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
-        }else if(extension == "tga"){
-            write_result = stbi_write_tga(filepath, Width, Height, 4, Pixels);
-        }else{
-            std::cerr << "[SFPL]: Unknown image extension of '" << filepath << "'\n";
-            return false;
-        }
-
-        if(!write_result)
-            std::cerr << "[SFPL]: Can't save plot to " << filepath << "'\n";
-
-        return write_result;
-    }
+    bool Write(const char *filepath);
+	
 };
 
 
@@ -762,6 +680,116 @@ bool PlotBuilder::Build(const DataSource sources[], size_t sources_count, const 
 }
 
 }//namespace libplot
+
+extern unsigned char opensans_regular[];
+
+//stbi prototypes
+
+typedef struct
+{
+    unsigned char *data;
+    int cursor;
+    int size;
+} stbtt__buf;
+
+struct stbtt_fontinfo
+{
+    void           * userdata;
+    unsigned char  * data;              // pointer to .ttf file
+    int              fontstart;         // offset of start of font
+
+    int numGlyphs;                     // number of glyphs, needed for range checking
+
+    int loca,head,glyf,hhea,hmtx,kern,gpos,svg; // table locations as offset from start of .ttf
+    int index_map;                     // a cmap mapping for our chosen character encoding
+    int indexToLocFormat;              // format needed to map from glyph index to glyph
+
+    stbtt__buf cff;                    // cff font data
+    stbtt__buf charstrings;            // the charstring index
+    stbtt__buf gsubrs;                 // global charstring subroutines index
+    stbtt__buf subrs;                  // private charstring subroutines index
+    stbtt__buf fontdicts;              // array of font dicts
+    stbtt__buf fdselect;               // map from glyph to fontdict
+};
+
+extern "C" {
+	int stbtt_GetFontOffsetForIndex(const unsigned char *data, int index);
+	unsigned char *stbtt_GetCodepointBitmap(const stbtt_fontinfo *info, float scale_x, float scale_y, int codepoint, int *width, int *height, int *xoff, int *yoff);
+	void stbtt_FreeBitmap(unsigned char *bitmap, void *userdata);
+	float stbtt_ScaleForPixelHeight(const stbtt_fontinfo *info, float pixels);
+	int stbtt_InitFont(stbtt_fontinfo *info, const unsigned char *data, int offset);
+
+	int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
+	int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
+	int stbi_write_tga(char const *filename, int w, int h, int comp, const void *data);
+	int stbi_write_jpg(char const *filename, int w, int h, int comp, const void *data, int quality);
+	int stbi_write_hdr(char const *filename, int w, int h, int comp, const float *data);
+}
+
+FontInfo::FontInfo(){
+	STBTTInfo = new stbtt_fontinfo;
+	FontBuffer = opensans_regular;
+
+    if(!stbtt_InitFont(STBTTInfo, FontBuffer, stbtt_GetFontOffsetForIndex(FontBuffer, 0))){
+        std::cerr << "[SFPL]: Can't init font, it is probably broken. Consider rebuilding library\n";
+        std::cerr << "[SFPL]: library can't proceed\n";
+        std::cerr << "[SFPL]: terminating...\n";
+        exit(0);
+    }
+}
+
+size_t FontInfo::GetStringLength(const char *string, size_t font_size){
+    size_t length = 0;
+    for(size_t i = 0; i<strlen(string); ++i){
+        if(string[i] == ' '){
+            length += font_size * 0.3;
+            continue;
+        }
+
+        int width, height, xoffset, yoffset;
+        unsigned char *bitmap = stbtt_GetCodepointBitmap(STBTTInfo, 0, stbtt_ScaleForPixelHeight(STBTTInfo, font_size), (int)string[i], &width, &height, &xoffset, &yoffset);
+
+        if(!bitmap)continue;
+
+        length += width + font_size * 0.03;
+        stbtt_FreeBitmap(bitmap, nullptr);
+    }
+    return length;
+}
+
+u8 *FontInfo::GetCodepointBitmap(float scale_x, float scale_y, int codepoint, int *width, int *height, int *xoff, int *yoff) {
+	return stbtt_GetCodepointBitmap(STBTTInfo, scale_x, scale_y, codepoint, width, height, xoff, yoff);
+}
+
+void FontInfo::FreeBitmap(unsigned char *bitmap, void *userdata) {
+	stbtt_FreeBitmap(bitmap, userdata);
+}
+
+float FontInfo::ScaleForPixelHeight(float height) {
+	return stbtt_ScaleForPixelHeight(STBTTInfo, height);
+}
+
+bool Image::Write(const char *filepath){
+    std::string str(filepath);
+    std::string extension(&str[str.find_last_of('.') + 1]);
+
+    bool write_result = false;
+    if(extension == "png"){
+        write_result = stbi_write_png(filepath, Width, Height, 4, Pixels, Width * 4);
+    }else if(extension == "jpg" || extension == "jpeg"){
+        write_result = stbi_write_jpg(filepath, Width, Height, 4, Pixels, 100);
+    }else if(extension == "tga"){
+        write_result = stbi_write_tga(filepath, Width, Height, 4, Pixels);
+    }else{
+        std::cerr << "[SFPL]: Unknown image extension of '" << filepath << "'\n";
+        return false;
+    }
+
+    if(!write_result)
+        std::cerr << "[SFPL]: Can't save plot to " << filepath << "'\n";
+
+    return write_result;
+}
 
 
 #define STB_TRUETYPE_IMPLEMENTATION
