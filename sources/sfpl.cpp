@@ -37,6 +37,22 @@ void AssertFail(const char *assertion, const char *function,const char *message)
     exit(0);
 }
 
+const char *const s_DefaultOutputFilepath = "sfpl_default_output.jpg";
+
+template<typename Type>
+static int Dump(const Type &type){
+    std::cerr << type;
+    return 0;
+}
+
+template<typename ...ArgsType>
+static bool Error(const char *function, ArgsType&&...args){
+    std::cerr << "[SFPL]: Error: ";
+    (void)std::initializer_list<int>{Dump<ArgsType>(args)...};
+    std::cerr << '\n';
+    return false;
+} 
+
 using u8 = uint8_t;
 
 template<typename T>
@@ -648,21 +664,23 @@ if(!(condition)){ \
 namespace sfpl{
 
 bool PlotBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, const sfpl::OutputParameters &params){
-    CHECK(sources != nullptr,       "sources can't be nullptr");
-    CHECK(sources_count != 0,       "can't build a plot with zero sources");
-    CHECK(outfilepath != nullptr,  "outfilename can't be nullptr");
-    CHECK(params.ImageWidth >= 50,             "ImageWidth can't be less then 50");
-    CHECK(params.ImageHeight >= 50,            "ImageHeight can't be less then 50");
-    CHECK(params.PlotTitle != nullptr,        "PlotTitle can't be nullptr");
-    CHECK(params.XAxisName != nullptr,  "XAxisName can't be nullptr");
-    CHECK(params.YAxisName != nullptr,  "YAxisName can't be nullptr");
+    const char *const ErrorFunctionName = "LineChartBuilder::Build";
+
+    if(sources == nullptr || sources_count == 0)
+        return Error(ErrorFunctionName, "sources should be a valid array of size greater than zero");
+
+    if(outfilepath == nullptr || outfilepath[0] == '\0')
+        outfilepath = s_DefaultOutputFilepath;
 
     for(size_t i = 0; i<sources_count; ++i){
-        CHECK(sources[i].Count >= 2,            " Can't build a plot using less than two points");
-        CHECK(sources[i].Name != nullptr,  "Name should be a pointer to a valid string, if you want and empty one, assign \"\"");
-        CHECK(sources[i].X != nullptr,          "pointer to X array should be a valid non-null pointer");
-        CHECK(sources[i].Y != nullptr,          "pointer to Y array should be a valid non-null pointer");
+        if(sources[i].Count < 2)
+            return Error(ErrorFunctionName, "Can't build a plot using less than two points");
+        if(sources[i].X == nullptr)
+            return Error(ErrorFunctionName, "pointer to X array should be a valid non-null pointer");
+        if(sources[i].Y == nullptr)
+            return Error(ErrorFunctionName, "pointer to Y array should be a valid non-null pointer");
     }
+
     constexpr float MinTraceDataRange = 0.0001;
 
     PlotRange range = MakeBestAlignment(GetPlotRange(sources, sources_count));
@@ -781,12 +799,11 @@ bool Image::Write(const char *filepath){
     }else if(extension == "tga"){
         write_result = stbi_write_tga(filepath, Width, Height, 4, Pixels);
     }else{
-        std::cerr << "[SFPL]: Unknown image extension of '" << filepath << "'\n";
-        return false;
+        return Error("Image::Write", "Unknown image extension of '", filepath, "'");
     }
 
     if(!write_result)
-        std::cerr << "[SFPL]: Can't save plot to " << filepath << "'\n";
+        return Error("Image::Write", "Can't save plot to '", filepath, "'");
 
     return write_result;
 }
