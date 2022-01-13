@@ -9,18 +9,21 @@
 #include "sfpl.hpp"
 
 #ifdef _MSC_VER
-    #define __FUNCTION__ __FUNCSIG__
+    #define SFPL_FUNCTION __FUNCSIG__
+
+	#pragma warning(disable : 4244)
+	#pragma warning(disable : 4305)
 #elif defined(__GNUC__) || defined(__clang__)
-    #define __FUNCTION__ __PRETTY_FUNCTION__
+    #define SFPL_FUNCTION __PRETTY_FUNCTION__
 #else
-    #define __FUNCTION__ ""
+    #define SFPL_FUNCTION ""
     #warning "This compiler does not support function name in assertions"
 #endif
 
 void AssertFail(const char *assertion, const char *function,const char *message);
 
 #ifndef NDEBUG
-    #define Assert(x, msg) (static_cast<bool>(x) ? void(0) : ::AssertFail(#x, __FUNCTION__, msg))
+    #define Assert(x, msg) (static_cast<bool>(x) ? void(0) : ::AssertFail(#x, SFPL_FUNCTION, msg))
 #else
     #define Assert(x, msg) (void)0
 #endif
@@ -86,7 +89,7 @@ T Clamp(T value, T min, T max){
 }
 
 float Rad(float deg){
-    return deg / 180.f * 3.141;
+    return deg / 180.f * 3.141f;
 }
 
 u8 ToR8(float channel){
