@@ -605,7 +605,7 @@ public:
                 TracePoint p1 = MapToPlotRange(sources[i].X[j + 1], sources[i].Y[j + 1]); 
 
                 auto initial_slope = Slope(p0, p1);
-
+#if 0
                 for(size_t k = j+2; k<sources[i].Count - 1; ++k){
                     TracePoint potential = MapToPlotRange(sources[i].X[k], sources[i].Y[k]);
 
@@ -614,7 +614,7 @@ public:
                         ++j;
                     }else break;
                 }
-
+#endif
                 DrawTraceFragment(p0, p1, color);
 
                 p0 = p1;
