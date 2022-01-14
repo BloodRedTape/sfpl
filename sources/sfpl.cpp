@@ -20,13 +20,18 @@
     #warning "This compiler does not support function name in assertions"
 #endif
 
-void AssertFail(const char *assertion, const char *function,const char *message);
-
 #ifndef NDEBUG
-    #define Assert(x, msg) (static_cast<bool>(x) ? void(0) : ::AssertFail(#x, SFPL_FUNCTION, msg))
+#define Assert(x, msg) (static_cast<bool>(x) ? void(0) : ::AssertFail(#x, SFPL_FUNCTION, msg))
 #else
-    #define Assert(x, msg) (void)0
+#define Assert(x, msg) (void)0
 #endif
+
+
+using u8 = uint8_t;
+struct stbtt_fontinfo;
+
+extern unsigned char opensans_regular[];
+const char *const s_DefaultOutputFilepath = "sfpl_default_output.jpg";
 
 void AssertFail(const char *assertion, const char *function,const char *message){
     std::cerr << "[SFPL]: Assertion Failed" << std::endl;
@@ -37,23 +42,20 @@ void AssertFail(const char *assertion, const char *function,const char *message)
     exit(0);
 }
 
-const char *const s_DefaultOutputFilepath = "sfpl_default_output.jpg";
-
 template<typename Type>
-static int Dump(const Type &type){
+int Dump(const Type &type){
     std::cerr << type;
     return 0;
 }
 
 template<typename ...ArgsType>
-static bool Error(const char *function, ArgsType&&...args){
+bool Error(const char *function, ArgsType&&...args){
     std::cerr << "[SFPL]: Error: ";
     (void)std::initializer_list<int>{Dump<ArgsType>(args)...};
     std::cerr << '\n';
     return false;
-} 
+}
 
-using u8 = uint8_t;
 
 template<typename T>
 T Clamp(T value, T min, T max){
@@ -67,9 +69,6 @@ float Rad(float deg){
 u8 ToR8(float channel){
     return (u8)Clamp((int)std::round(channel * 255), 0, 255);
 }
-
-
-struct stbtt_fontinfo;
 
 struct FontInfo{
 private:
@@ -193,7 +192,7 @@ struct Image{
 
         const auto ToAlpha = [](float length_to_line, float half_width) -> float{
             const float solid_boundary = 0.4;
-            const float smooth_length = 1.f - solid_boundary; 
+            const float smooth_length = 1.f - solid_boundary;
 
             const float normalized_length = length_to_line / half_width;
 
@@ -219,7 +218,7 @@ struct Image{
 
         if(std::abs(dy) <= 1){
             y0 = std::max(y0, y1);
-            
+
             for(long y = -half_width; y < half_width; y++){
                 for(long x = 0; x < dx; x++){
                     float length_to_line = y;
@@ -270,7 +269,7 @@ struct Image{
             Get(i, j) = pixel;
     }
 
-    void DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically = false){    
+    void DrawString(const Pixel &color, const char *string, size_t font_size, size_t x0, size_t y0, bool vertically = false){
         int offset = 0;
         for(size_t i = 0; i<strlen(string); ++i){
             if(string[i] == ' '){
@@ -286,8 +285,8 @@ struct Image{
             for(int y = 0; y < height; y++){
                 for(int x = 0; x < width;  x++){
                     BlendPixel(
-                        {color.Red, color.Green, color.Blue, (u8)(color.Alpha * (bitmap[y * width + x]/255.f))}, 
-                        x0 + (!vertically)*(offset + x)       + vertically*(-abs(yoffset) + y), 
+                        {color.Red, color.Green, color.Blue, (u8)(color.Alpha * (bitmap[y * width + x]/255.f))},
+                        x0 + (!vertically)*(offset + x)       + vertically*(-abs(yoffset) + y),
                         y0 + (!vertically)*(abs(yoffset) - y) + vertically*(offset + x)
                     );
                 }
@@ -304,7 +303,7 @@ struct Image{
     }
 
     bool Write(const char *filepath);
-	
+
 };
 
 
@@ -318,7 +317,7 @@ struct ScientificDouble{
             Mantissa = 0;
             return;
         }
-        
+
         Mantissa = std::floor(log10(std::fabs(value)));
         Exponent = value/pow(10, Mantissa);
     }
@@ -427,7 +426,7 @@ double GetNiceStep(const AxisRange &true_range, const AxisRange &aligned){
             }
         }
     }
-    
+
     return (true_range.Max - true_range.Min) / 5;
 }
 
@@ -574,7 +573,7 @@ public:
             }
         }
 
-        size_t max_axis_text_size = 0; 
+        size_t max_axis_text_size = 0;
         for(auto i = 0; i <= std::ceil((range.y.Max - range.y.Min) / y_step); i++){
             auto current = range.y.Min + i*y_step;
             if(InRange(current, Range.y)){
@@ -598,11 +597,11 @@ public:
 
         for(size_t i = 0; i<sources_count; ++i){
             Pixel color = colors.NextColor();
-            
+
             TracePoint p0 = MapToPlotRange(sources[i].X[0], sources[i].Y[0]);
 
             for(size_t j = 0; j < sources[i].Count - 1;++j){
-                TracePoint p1 = MapToPlotRange(sources[i].X[j + 1], sources[i].Y[j + 1]); 
+                TracePoint p1 = MapToPlotRange(sources[i].X[j + 1], sources[i].Y[j + 1]);
 
                 auto initial_slope = Slope(p0, p1);
 #if 0
@@ -646,13 +645,13 @@ PlotRange GetPlotRange(const ::sfpl::DataSource sources[], size_t sources_count)
     for(size_t i = 0; i<sources_count; ++i){
         for(size_t j = 0; j<sources[i].Count; j++){
             if(sources[i].Y[j] < result.y.Min)
-                result.y.Min = sources[i].Y[j];    
+                result.y.Min = sources[i].Y[j];
             if(sources[i].Y[j] > result.y.Max)
-                result.y.Max = sources[i].Y[j];    
+                result.y.Max = sources[i].Y[j];
             if(sources[i].X[j] < result.x.Min)
-                result.x.Min = sources[i].X[j];    
+                result.x.Min = sources[i].X[j];
             if(sources[i].X[j] > result.x.Max)
-                result.x.Max = sources[i].X[j];    
+                result.x.Max = sources[i].X[j];
         }
     }
     return result;
@@ -663,12 +662,6 @@ PlotRange MakeBestAlignment(const PlotRange &range){
     AlignPair(best_range.x.Min, best_range.x.Max);
     AlignPair(best_range.y.Min, best_range.y.Max);
     return best_range;
-}
-
-#define CHECK(condition, error_message) \
-if(!(condition)){ \
-    std::cerr << "[SFPL]: Can't build a plot: " << error_message << std::endl; \
-    return false; \
 }
 
 namespace sfpl{
@@ -703,8 +696,8 @@ bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, c
 
     PlotRange range = MakeBestAlignment(GetPlotRange(sources, sources_count));
 
-    CHECK(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange, 
-        "can't build a plot, source data range approaches zero\n");
+    if(!(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange))
+        return Error("can't build a plot, source data range approaches zero");
 
     Plotter plotter(range, params.Width, params.Height, style.LineStyle);
 
@@ -717,7 +710,6 @@ bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, c
 
 }//namespace libplot
 
-extern unsigned char opensans_regular[];
 
 //stbi prototypes
 
@@ -829,280 +821,6 @@ bool Image::Write(const char *filepath){
 
 #define STB_TRUETYPE_IMPLEMENTATION
 
-// stb_truetype.h - v1.24 - public domain
-// authored from 2009-2020 by Sean Barrett / RAD Game Tools
-//
-// =======================================================================
-//
-//    NO SECURITY GUARANTEE -- DO NOT USE THIS ON UNTRUSTED FONT FILES
-//
-// This library does no range checking of the offsets found in the file,
-// meaning an attacker can use it to read arbitrary memory.
-//
-// =======================================================================
-//
-//   This library processes TrueType files:
-//        parse files
-//        extract glyph metrics
-//        extract glyph shapes
-//        render glyphs to one-channel bitmaps with antialiasing (box filter)
-//        render glyphs to one-channel SDF bitmaps (signed-distance field/function)
-//
-//   Todo:
-//        non-MS cmaps
-//        crashproof on bad data
-//        hinting? (no longer patented)
-//        cleartype-style AA?
-//        optimize: use simple memory allocator for intermediates
-//        optimize: build edge-list directly from curves
-//        optimize: rasterize directly from curves?
-//
-// ADDITIONAL CONTRIBUTORS
-//
-//   Mikko Mononen: compound shape support, more cmap formats
-//   Tor Andersson: kerning, subpixel rendering
-//   Dougall Johnson: OpenType / Type 2 font handling
-//   Daniel Ribeiro Maciel: basic GPOS-based kerning
-//
-//   Misc other:
-//       Ryan Gordon
-//       Simon Glass
-//       github:IntellectualKitty
-//       Imanol Celaya
-//       Daniel Ribeiro Maciel
-//
-//   Bug/warning reports/fixes:
-//       "Zer" on mollyrocket       Fabian "ryg" Giesen   github:NiLuJe
-//       Cass Everitt               Martins Mozeiko       github:aloucks
-//       stoiko (Haemimont Games)   Cap Petschulat        github:oyvindjam
-//       Brian Hook                 Omar Cornut           github:vassvik
-//       Walter van Niftrik         Ryan Griege
-//       David Gow                  Peter LaValle
-//       David Given                Sergey Popov
-//       Ivan-Assen Ivanov          Giumo X. Clanjor
-//       Anthony Pesch              Higor Euripedes
-//       Johan Duparc               Thomas Fields
-//       Hou Qiming                 Derek Vinyard
-//       Rob Loach                  Cort Stratton
-//       Kenney Phillis Jr.         Brian Costabile
-//       Ken Voskuil (kaesve)
-//
-// VERSION HISTORY
-//
-//   1.24 (2020-02-05) fix warning
-//   1.23 (2020-02-02) query SVG data for glyphs; query whole kerning table (but only kern not GPOS)
-//   1.22 (2019-08-11) minimize missing-glyph duplication; fix kerning if both 'GPOS' and 'kern' are defined
-//   1.21 (2019-02-25) fix warning
-//   1.20 (2019-02-07) PackFontRange skips missing codepoints; GetScaleFontVMetrics()
-//   1.19 (2018-02-11) GPOS kerning, STBTT_fmod
-//   1.18 (2018-01-29) add missing function
-//   1.17 (2017-07-23) make more arguments const; doc fix
-//   1.16 (2017-07-12) SDF support
-//   1.15 (2017-03-03) make more arguments const
-//   1.14 (2017-01-16) num-fonts-in-TTC function
-//   1.13 (2017-01-02) support OpenType fonts, certain Apple fonts
-//   1.12 (2016-10-25) suppress warnings about casting away const with -Wcast-qual
-//   1.11 (2016-04-02) fix unused-variable warning
-//   1.10 (2016-04-02) user-defined fabs(); rare memory leak; remove duplicate typedef
-//   1.09 (2016-01-16) warning fix; avoid crash on outofmem; use allocation userdata properly
-//   1.08 (2015-09-13) document stbtt_Rasterize(); fixes for vertical & horizontal edges
-//   1.07 (2015-08-01) allow PackFontRanges to accept arrays of sparse codepoints;
-//                     variant PackFontRanges to pack and render in separate phases;
-//                     fix stbtt_GetFontOFfsetForIndex (never worked for non-0 input?);
-//                     fixed an assert() bug in the new rasterizer
-//                     replace assert() with STBTT_assert() in new rasterizer
-//
-//   Full history can be found at the end of this file.
-//
-// LICENSE
-//
-//   See end of file for license information.
-//
-// USAGE
-//
-//   Include this file in whatever places need to refer to it. In ONE C/C++
-//   file, write:
-//      #define STB_TRUETYPE_IMPLEMENTATION
-//   before the #include of this file. This expands out the actual
-//   implementation into that C/C++ file.
-//
-//   To make the implementation private to the file that generates the implementation,
-//      #define STBTT_STATIC
-//
-//   Simple 3D API (don't ship this, but it's fine for tools and quick start)
-//           stbtt_BakeFontBitmap()               -- bake a font to a bitmap for use as texture
-//           stbtt_GetBakedQuad()                 -- compute quad to draw for a given char
-//
-//   Improved 3D API (more shippable):
-//           #include "stb_rect_pack.h"           -- optional, but you really want it
-//           stbtt_PackBegin()
-//           stbtt_PackSetOversampling()          -- for improved quality on small fonts
-//           stbtt_PackFontRanges()               -- pack and renders
-//           stbtt_PackEnd()
-//           stbtt_GetPackedQuad()
-//
-//   "Load" a font file from a memory buffer (you have to keep the buffer loaded)
-//           stbtt_InitFont()
-//           stbtt_GetFontOffsetForIndex()        -- indexing for TTC font collections
-//           stbtt_GetNumberOfFonts()             -- number of fonts for TTC font collections
-//
-//   Render a unicode codepoint to a bitmap
-//           stbtt_GetCodepointBitmap()           -- allocates and returns a bitmap
-//           stbtt_MakeCodepointBitmap()          -- renders into bitmap you provide
-//           stbtt_GetCodepointBitmapBox()        -- how big the bitmap must be
-//
-//   Character advance/positioning
-//           stbtt_GetCodepointHMetrics()
-//           stbtt_GetFontVMetrics()
-//           stbtt_GetFontVMetricsOS2()
-//           stbtt_GetCodepointKernAdvance()
-//
-//   Starting with version 1.06, the rasterizer was replaced with a new,
-//   faster and generally-more-precise rasterizer. The new rasterizer more
-//   accurately measures pixel coverage for anti-aliasing, except in the case
-//   where multiple shapes overlap, in which case it overestimates the AA pixel
-//   coverage. Thus, anti-aliasing of intersecting shapes may look wrong. If
-//   this turns out to be a problem, you can re-enable the old rasterizer with
-//        #define STBTT_RASTERIZER_VERSION 1
-//   which will incur about a 15% speed hit.
-//
-// ADDITIONAL DOCUMENTATION
-//
-//   Immediately after this block comment are a series of sample programs.
-//
-//   After the sample programs is the "header file" section. This section
-//   includes documentation for each API function.
-//
-//   Some important concepts to understand to use this library:
-//
-//      Codepoint
-//         Characters are defined by unicode codepoints, e.g. 65 is
-//         uppercase A, 231 is lowercase c with a cedilla, 0x7e30 is
-//         the hiragana for "ma".
-//
-//      Glyph
-//         A visual character shape (every codepoint is rendered as
-//         some glyph)
-//
-//      Glyph index
-//         A font-specific integer ID representing a glyph
-//
-//      Baseline
-//         Glyph shapes are defined relative to a baseline, which is the
-//         bottom of uppercase characters. Characters extend both above
-//         and below the baseline.
-//
-//      Current Point
-//         As you draw text to the screen, you keep track of a "current point"
-//         which is the origin of each character. The current point's vertical
-//         position is the baseline. Even "baked fonts" use this model.
-//
-//      Vertical Font Metrics
-//         The vertical qualities of the font, used to vertically position
-//         and space the characters. See docs for stbtt_GetFontVMetrics.
-//
-//      Font Size in Pixels or Points
-//         The preferred interface for specifying font sizes in stb_truetype
-//         is to specify how tall the font's vertical extent should be in pixels.
-//         If that sounds good enough, skip the next paragraph.
-//
-//         Most font APIs instead use "points", which are a common typographic
-//         measurement for describing font size, defined as 72 points per inch.
-//         stb_truetype provides a point API for compatibility. However, true
-//         "per inch" conventions don't make much sense on computer displays
-//         since different monitors have different number of pixels per
-//         inch. For example, Windows traditionally uses a convention that
-//         there are 96 pixels per inch, thus making 'inch' measurements have
-//         nothing to do with inches, and thus effectively defining a point to
-//         be 1.333 pixels. Additionally, the TrueType font data provides
-//         an explicit scale factor to scale a given font's glyphs to points,
-//         but the author has observed that this scale factor is often wrong
-//         for non-commercial fonts, thus making fonts scaled in points
-//         according to the TrueType spec incoherently sized in practice.
-//
-// DETAILED USAGE:
-//
-//  Scale:
-//    Select how high you want the font to be, in points or pixels.
-//    Call ScaleForPixelHeight or ScaleForMappingEmToPixels to compute
-//    a scale factor SF that will be used by all other functions.
-//
-//  Baseline:
-//    You need to select a y-coordinate that is the baseline of where
-//    your text will appear. Call GetFontBoundingBox to get the baseline-relative
-//    bounding box for all characters. SF*-y0 will be the distance in pixels
-//    that the worst-case character could extend above the baseline, so if
-//    you want the top edge of characters to appear at the top of the
-//    screen where y=0, then you would set the baseline to SF*-y0.
-//
-//  Current point:
-//    Set the current point where the first character will appear. The
-//    first character could extend left of the current point; this is font
-//    dependent. You can either choose a current point that is the leftmost
-//    point and hope, or add some padding, or check the bounding box or
-//    left-side-bearing of the first character to be displayed and set
-//    the current point based on that.
-//
-//  Displaying a character:
-//    Compute the bounding box of the character. It will contain signed values
-//    relative to <current_point, baseline>. I.e. if it returns x0,y0,x1,y1,
-//    then the character should be displayed in the rectangle from
-//    <current_point+SF*x0, baseline+SF*y0> to <current_point+SF*x1,baseline+SF*y1).
-//
-//  Advancing for the next character:
-//    Call GlyphHMetrics, and compute 'current_point += SF * advance'.
-//
-//
-// ADVANCED USAGE
-//
-//   Quality:
-//
-//    - Use the functions with Subpixel at the end to allow your characters
-//      to have subpixel positioning. Since the font is anti-aliased, not
-//      hinted, this is very import for quality. (This is not possible with
-//      baked fonts.)
-//
-//    - Kerning is now supported, and if you're supporting subpixel rendering
-//      then kerning is worth using to give your text a polished look.
-//
-//   Performance:
-//
-//    - Convert Unicode codepoints to glyph indexes and operate on the glyphs;
-//      if you don't do this, stb_truetype is forced to do the conversion on
-//      every call.
-//
-//    - There are a lot of memory allocations. We should modify it to take
-//      a temp buffer and allocate from the temp buffer (without freeing),
-//      should help performance a lot.
-//
-// NOTES
-//
-//   The system uses the raw data found in the .ttf file without changing it
-//   and without building auxiliary data structures. This is a bit inefficient
-//   on little-endian systems (the data is big-endian), but assuming you're
-//   caching the bitmaps or glyph shapes this shouldn't be a big deal.
-//
-//   It appears to be very hard to programmatically determine what font a
-//   given file is in a general way. I provide an API for this, but I don't
-//   recommend it.
-//
-//
-// PERFORMANCE MEASUREMENTS FOR 1.06:
-//
-//                      32-bit     64-bit
-//   Previous release:  8.83 s     7.68 s
-//   Pool allocations:  7.72 s     6.34 s
-//   Inline sort     :  6.54 s     5.65 s
-//   New rasterizer  :  5.63 s     5.00 s
-
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-////
-////  SAMPLE PROGRAMS
-////
-//
-//  Incomplete text-in-3d-api example, which draws quads properly aligned to be lossless
-//
 #if 0
 #define STB_TRUETYPE_IMPLEMENTATION  // force following include to generate implementation
 #include "stb_truetype.h"
@@ -1177,24 +895,7 @@ int main(int argc, char **argv)
    return 0;
 }
 #endif
-//
-// Output:
-//
-//     .ii.
-//    @@@@@@.
-//   V@Mio@@o
-//   :i.  V@V
-//     :oM@@M
-//   :@@@MM@M
-//   @@o  o@M
-//  :@@.  M@M
-//   @@@o@@@@
-//   :M@@V:@@.
-//
-//////////////////////////////////////////////////////////////////////////////
-//
-// Complete program: print "Hello World!" banner, with bugs
-//
+
 #if 0
 char buffer[24<<20];
 unsigned char screen[20][79];
@@ -1239,15 +940,6 @@ int main(int arg, char **argv)
 }
 #endif
 
-
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-////
-////   INTEGRATION WITH YOUR CODEBASE
-////
-////   The following sections allow you to supply alternate definitions
-////   of C library functions used by stb_truetype, e.g. if you don't
-////   link with the C runtime library.
 
 #ifdef STB_TRUETYPE_IMPLEMENTATION
    // #define your own (u)stbtt_int8/16/32 before including to override this
@@ -1747,75 +1439,6 @@ STBTT_DEF void stbtt_FreeSDF(unsigned char *bitmap, void *userdata);
 
 STBTT_DEF unsigned char * stbtt_GetGlyphSDF(const stbtt_fontinfo *info, float scale, int glyph, int padding, unsigned char onedge_value, float pixel_dist_scale, int *width, int *height, int *xoff, int *yoff);
 STBTT_DEF unsigned char * stbtt_GetCodepointSDF(const stbtt_fontinfo *info, float scale, int codepoint, int padding, unsigned char onedge_value, float pixel_dist_scale, int *width, int *height, int *xoff, int *yoff);
-// These functions compute a discretized SDF field for a single character, suitable for storing
-// in a single-channel texture, sampling with bilinear filtering, and testing against
-// larger than some threshold to produce scalable fonts.
-//        info              --  the font
-//        scale             --  controls the size of the resulting SDF bitmap, same as it would be creating a regular bitmap
-//        glyph/codepoint   --  the character to generate the SDF for
-//        padding           --  extra "pixels" around the character which are filled with the distance to the character (not 0),
-//                                 which allows effects like bit outlines
-//        onedge_value      --  value 0-255 to test the SDF against to reconstruct the character (i.e. the isocontour of the character)
-//        pixel_dist_scale  --  what value the SDF should increase by when moving one SDF "pixel" away from the edge (on the 0..255 scale)
-//                                 if positive, > onedge_value is inside; if negative, < onedge_value is inside
-//        width,height      --  output height & width of the SDF bitmap (including padding)
-//        xoff,yoff         --  output origin of the character
-//        return value      --  a 2D array of bytes 0..255, width*height in size
-//
-// pixel_dist_scale & onedge_value are a scale & bias that allows you to make
-// optimal use of the limited 0..255 for your application, trading off precision
-// and special effects. SDF values outside the range 0..255 are clamped to 0..255.
-//
-// Example:
-//      scale = stbtt_ScaleForPixelHeight(22)
-//      padding = 5
-//      onedge_value = 180
-//      pixel_dist_scale = 180/5.0 = 36.0
-//
-//      This will create an SDF bitmap in which the character is about 22 pixels
-//      high but the whole bitmap is about 22+5+5=32 pixels high. To produce a filled
-//      shape, sample the SDF at each pixel and fill the pixel if the SDF value
-//      is greater than or equal to 180/255. (You'll actually want to antialias,
-//      which is beyond the scope of this example.) Additionally, you can compute
-//      offset outlines (e.g. to stroke the character border inside & outside,
-//      or only outside). For example, to fill outside the character up to 3 SDF
-//      pixels, you would compare against (180-36.0*3)/255 = 72/255. The above
-//      choice of variables maps a range from 5 pixels outside the shape to
-//      2 pixels inside the shape to 0..255; this is intended primarily for apply
-//      outside effects only (the interior range is needed to allow proper
-//      antialiasing of the font at *smaller* sizes)
-//
-// The function computes the SDF analytically at each SDF pixel, not by e.g.
-// building a higher-res bitmap and approximating it. In theory the quality
-// should be as high as possible for an SDF of this size & representation, but
-// unclear if this is true in practice (perhaps building a higher-res bitmap
-// and computing from that can allow drop-out prevention).
-//
-// The algorithm has not been optimized at all, so expect it to be slow
-// if computing lots of characters or very large sizes.
-
-
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// Finding the right font...
-//
-// You should really just solve this offline, keep your own tables
-// of what font is what, and don't try to get it out of the .ttf file.
-// That's because getting it out of the .ttf file is really hard, because
-// the names in the file can appear in many possible encodings, in many
-// possible languages, and e.g. if you need a case-insensitive comparison,
-// the details of that depend on the encoding & language in a complex way
-// (actually underspecified in truetype, but also gigantic).
-//
-// But you can use the provided functions in two possible ways:
-//     stbtt_FindMatchingFont() will use *case-sensitive* comparisons on
-//             unicode-encoded names to try to find the font you want;
-//             you can run this before calling stbtt_InitFont()
-//
-//     stbtt_GetFontNameString() lets you get any of the various strings
-//             from the file yourself and do your own comparisons on them.
-//             You have to have called stbtt_InitFont() first.
 
 
 STBTT_DEF int stbtt_FindMatchingFont(const unsigned char *fontdata, const char *name, int flags);
@@ -5715,257 +5338,7 @@ STBTT_DEF int stbtt_CompareUTF8toUTF16_bigendian(const char *s1, int len1, const
 
 #endif // STB_TRUETYPE_IMPLEMENTATION
 
-
-// FULL VERSION HISTORY
-//
-//   1.19 (2018-02-11) OpenType GPOS kerning (horizontal only), STBTT_fmod
-//   1.18 (2018-01-29) add missing function
-//   1.17 (2017-07-23) make more arguments const; doc fix
-//   1.16 (2017-07-12) SDF support
-//   1.15 (2017-03-03) make more arguments const
-//   1.14 (2017-01-16) num-fonts-in-TTC function
-//   1.13 (2017-01-02) support OpenType fonts, certain Apple fonts
-//   1.12 (2016-10-25) suppress warnings about casting away const with -Wcast-qual
-//   1.11 (2016-04-02) fix unused-variable warning
-//   1.10 (2016-04-02) allow user-defined fabs() replacement
-//                     fix memory leak if fontsize=0.0
-//                     fix warning from duplicate typedef
-//   1.09 (2016-01-16) warning fix; avoid crash on outofmem; use alloc userdata for PackFontRanges
-//   1.08 (2015-09-13) document stbtt_Rasterize(); fixes for vertical & horizontal edges
-//   1.07 (2015-08-01) allow PackFontRanges to accept arrays of sparse codepoints;
-//                     allow PackFontRanges to pack and render in separate phases;
-//                     fix stbtt_GetFontOFfsetForIndex (never worked for non-0 input?);
-//                     fixed an assert() bug in the new rasterizer
-//                     replace assert() with STBTT_assert() in new rasterizer
-//   1.06 (2015-07-14) performance improvements (~35% faster on x86 and x64 on test machine)
-//                     also more precise AA rasterizer, except if shapes overlap
-//                     remove need for STBTT_sort
-//   1.05 (2015-04-15) fix misplaced definitions for STBTT_STATIC
-//   1.04 (2015-04-15) typo in example
-//   1.03 (2015-04-12) STBTT_STATIC, fix memory leak in new packing, various fixes
-//   1.02 (2014-12-10) fix various warnings & compile issues w/ stb_rect_pack, C++
-//   1.01 (2014-12-08) fix subpixel position when oversampling to exactly match
-//                        non-oversampled; STBTT_POINT_SIZE for packed case only
-//   1.00 (2014-12-06) add new PackBegin etc. API, w/ support for oversampling
-//   0.99 (2014-09-18) fix multiple bugs with subpixel rendering (ryg)
-//   0.9  (2014-08-07) support certain mac/iOS fonts without an MS platformID
-//   0.8b (2014-07-07) fix a warning
-//   0.8  (2014-05-25) fix a few more warnings
-//   0.7  (2013-09-25) bugfix: subpixel glyph bug fixed in 0.5 had come back
-//   0.6c (2012-07-24) improve documentation
-//   0.6b (2012-07-20) fix a few more warnings
-//   0.6  (2012-07-17) fix warnings; added stbtt_ScaleForMappingEmToPixels,
-//                        stbtt_GetFontBoundingBox, stbtt_IsGlyphEmpty
-//   0.5  (2011-12-09) bugfixes:
-//                        subpixel glyph renderer computed wrong bounding box
-//                        first vertex of shape can be off-curve (FreeSans)
-//   0.4b (2011-12-03) fixed an error in the font baking example
-//   0.4  (2011-12-01) kerning, subpixel rendering (tor)
-//                    bugfixes for:
-//                        codepoint-to-glyph conversion using table fmt=12
-//                        codepoint-to-glyph conversion using table fmt=4
-//                        stbtt_GetBakedQuad with non-square texture (Zer)
-//                    updated Hello World! sample to use kerning and subpixel
-//                    fixed some warnings
-//   0.3  (2009-06-24) cmap fmt=12, compound shapes (MM)
-//                    userdata, malloc-from-userdata, non-zero fill (stb)
-//   0.2  (2009-03-11) Fix unsigned/signed char warnings
-//   0.1  (2009-03-09) First public release
-//
-
-/*
-------------------------------------------------------------------------------
-This software is available under 2 licenses -- choose whichever you prefer.
-------------------------------------------------------------------------------
-ALTERNATIVE A - MIT License
-Copyright (c) 2017 Sean Barrett
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-------------------------------------------------------------------------------
-ALTERNATIVE B - Public Domain (www.unlicense.org)
-This is free and unencumbered software released into the public domain.
-Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
-software, either in source code form or as a compiled binary, for any purpose,
-commercial or non-commercial, and by any means.
-In jurisdictions that recognize copyright laws, the author or authors of this
-software dedicate any and all copyright interest in the software to the public
-domain. We make this dedication for the benefit of the public at large and to
-the detriment of our heirs and successors. We intend this dedication to be an
-overt act of relinquishment in perpetuity of all present and future rights to
-this software under copyright law.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-------------------------------------------------------------------------------
-*/
-
-
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-
-/* stb_image_write - v1.15 - public domain - http://nothings.org/stb
-   writes out PNG/BMP/TGA/JPEG/HDR images to C stdio - Sean Barrett 2010-2015
-                                     no warranty implied; use at your own risk
-
-   Before #including,
-
-       #define STB_IMAGE_WRITE_IMPLEMENTATION
-
-   in the file that you want to have the implementation.
-
-   Will probably not work correctly with strict-aliasing optimizations.
-
-ABOUT:
-
-   This header file is a library for writing images to C stdio or a callback.
-
-   The PNG output is not optimal; it is 20-50% larger than the file
-   written by a decent optimizing implementation; though providing a custom
-   zlib compress function (see STBIW_ZLIB_COMPRESS) can mitigate that.
-   This library is designed for source code compactness and simplicity,
-   not optimal image file size or run-time performance.
-
-BUILDING:
-
-   You can #define STBIW_ASSERT(x) before the #include to avoid using assert.h.
-   You can #define STBIW_MALLOC(), STBIW_REALLOC(), and STBIW_FREE() to replace
-   malloc,realloc,free.
-   You can #define STBIW_MEMMOVE() to replace memmove()
-   You can #define STBIW_ZLIB_COMPRESS to use a custom zlib-style compress function
-   for PNG compression (instead of the builtin one), it must have the following signature:
-   unsigned char * my_compress(unsigned char *data, int data_len, int *out_len, int quality);
-   The returned data will be freed with STBIW_FREE() (free() by default),
-   so it must be heap allocated with STBIW_MALLOC() (malloc() by default),
-
-UNICODE:
-
-   If compiling for Windows and you wish to use Unicode filenames, compile
-   with
-       #define STBIW_WINDOWS_UTF8
-   and pass utf8-encoded filenames. Call stbiw_convert_wchar_to_utf8 to convert
-   Windows wchar_t filenames to utf8.
-
-USAGE:
-
-   There are five functions, one for each image file format:
-
-     int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
-     int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
-     int stbi_write_tga(char const *filename, int w, int h, int comp, const void *data);
-     int stbi_write_jpg(char const *filename, int w, int h, int comp, const void *data, int quality);
-     int stbi_write_hdr(char const *filename, int w, int h, int comp, const float *data);
-
-     void stbi_flip_vertically_on_write(int flag); // flag is non-zero to flip data vertically
-
-   There are also five equivalent functions that use an arbitrary write function. You are
-   expected to open/close your file-equivalent before and after calling these:
-
-     int stbi_write_png_to_func(stbi_write_func *func, void *context, int w, int h, int comp, const void  *data, int stride_in_bytes);
-     int stbi_write_bmp_to_func(stbi_write_func *func, void *context, int w, int h, int comp, const void  *data);
-     int stbi_write_tga_to_func(stbi_write_func *func, void *context, int w, int h, int comp, const void  *data);
-     int stbi_write_hdr_to_func(stbi_write_func *func, void *context, int w, int h, int comp, const float *data);
-     int stbi_write_jpg_to_func(stbi_write_func *func, void *context, int x, int y, int comp, const void *data, int quality);
-
-   where the callback is:
-      void stbi_write_func(void *context, void *data, int size);
-
-   You can configure it with these global variables:
-      int stbi_write_tga_with_rle;             // defaults to true; set to 0 to disable RLE
-      int stbi_write_png_compression_level;    // defaults to 8; set to higher for more compression
-      int stbi_write_force_png_filter;         // defaults to -1; set to 0..5 to force a filter mode
-
-
-   You can define STBI_WRITE_NO_STDIO to disable the file variant of these
-   functions, so the library will not use stdio.h at all. However, this will
-   also disable HDR writing, because it requires stdio for formatted output.
-
-   Each function returns 0 on failure and non-0 on success.
-
-   The functions create an image file defined by the parameters. The image
-   is a rectangle of pixels stored from left-to-right, top-to-bottom.
-   Each pixel contains 'comp' channels of data stored interleaved with 8-bits
-   per channel, in the following order: 1=Y, 2=YA, 3=RGB, 4=RGBA. (Y is
-   monochrome color.) The rectangle is 'w' pixels wide and 'h' pixels tall.
-   The *data pointer points to the first byte of the top-left-most pixel.
-   For PNG, "stride_in_bytes" is the distance in bytes from the first byte of
-   a row of pixels to the first byte of the next row of pixels.
-
-   PNG creates output files with the same number of components as the input.
-   The BMP format expands Y to RGB in the file format and does not
-   output alpha.
-
-   PNG supports writing rectangles of data even when the bytes storing rows of
-   data are not consecutive in memory (e.g. sub-rectangles of a larger image),
-   by supplying the stride between the beginning of adjacent rows. The other
-   formats do not. (Thus you cannot write a native-format BMP through the BMP
-   writer, both because it is in BGR order and because it may have padding
-   at the end of the line.)
-
-   PNG allows you to set the deflate compression level by setting the global
-   variable 'stbi_write_png_compression_level' (it defaults to 8).
-
-   HDR expects linear float data. Since the format is always 32-bit rgb(e)
-   data, alpha (if provided) is discarded, and for monochrome data it is
-   replicated across all three channels.
-
-   TGA supports RLE or non-RLE compressed data. To use non-RLE-compressed
-   data, set the global variable 'stbi_write_tga_with_rle' to 0.
-
-   JPEG does ignore alpha channels in input data; quality is between 1 and 100.
-   Higher quality looks better but results in a bigger image.
-   JPEG baseline (no JPEG progressive).
-
-CREDITS:
-
-
-   Sean Barrett           -    PNG/BMP/TGA
-   Baldur Karlsson        -    HDR
-   Jean-Sebastien Guay    -    TGA monochrome
-   Tim Kelsey             -    misc enhancements
-   Alan Hickman           -    TGA RLE
-   Emmanuel Julien        -    initial file IO callback implementation
-   Jon Olick              -    original jo_jpeg.cpp code
-   Daniel Gibson          -    integrate JPEG, allow external zlib
-   Aarni Koskela          -    allow choosing PNG filter
-
-   bugfixes:
-      github:Chribba
-      Guillaume Chereau
-      github:jry2
-      github:romigrou
-      Sergio Gonzalez
-      Jonas Karlsson
-      Filip Wasil
-      Thatcher Ulrich
-      github:poppolopoppo
-      Patrick Boettcher
-      github:xeekworx
-      Cap Petschulat
-      Simon Rodriguez
-      Ivan Tikhonov
-      github:ignotion
-      Adam Schackart
-
-LICENSE
-
-  See end of file for license information.
-
-*/
 
 #ifndef INCLUDE_STB_IMAGE_WRITE_H
 #define INCLUDE_STB_IMAGE_WRITE_H
@@ -7416,95 +6789,3 @@ STBIWDEF int stbi_write_jpg(char const *filename, int x, int y, int comp, const 
 #endif
 
 #endif // STB_IMAGE_WRITE_IMPLEMENTATION
-
-/* Revision history
-      1.14  (2020-02-02) updated JPEG writer to downsample chroma channels
-      1.13
-      1.12
-      1.11  (2019-08-11)
-
-      1.10  (2019-02-07)
-             support utf8 filenames in Windows; fix warnings and platform ifdefs
-      1.09  (2018-02-11)
-             fix typo in zlib quality API, improve STB_I_W_STATIC in C++
-      1.08  (2018-01-29)
-             add stbi__flip_vertically_on_write, external zlib, zlib quality, choose PNG filter
-      1.07  (2017-07-24)
-             doc fix
-      1.06 (2017-07-23)
-             writing JPEG (using Jon Olick's code)
-      1.05   ???
-      1.04 (2017-03-03)
-             monochrome BMP expansion
-      1.03   ???
-      1.02 (2016-04-02)
-             avoid allocating large structures on the stack
-      1.01 (2016-01-16)
-             STBIW_REALLOC_SIZED: support allocators with no realloc support
-             avoid race-condition in crc initialization
-             minor compile issues
-      1.00 (2015-09-14)
-             installable file IO function
-      0.99 (2015-09-13)
-             warning fixes; TGA rle support
-      0.98 (2015-04-08)
-             added STBIW_MALLOC, STBIW_ASSERT etc
-      0.97 (2015-01-18)
-             fixed HDR asserts, rewrote HDR rle logic
-      0.96 (2015-01-17)
-             add HDR output
-             fix monochrome BMP
-      0.95 (2014-08-17)
-		       add monochrome TGA output
-      0.94 (2014-05-31)
-             rename private functions to avoid conflicts with stb_image.h
-      0.93 (2014-05-27)
-             warning fixes
-      0.92 (2010-08-01)
-             casts to unsigned char to fix warnings
-      0.91 (2010-07-17)
-             first public release
-      0.90   first internal release
-*/
-
-/*
-------------------------------------------------------------------------------
-This software is available under 2 licenses -- choose whichever you prefer.
-------------------------------------------------------------------------------
-ALTERNATIVE A - MIT License
-Copyright (c) 2017 Sean Barrett
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-------------------------------------------------------------------------------
-ALTERNATIVE B - Public Domain (www.unlicense.org)
-This is free and unencumbered software released into the public domain.
-Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
-software, either in source code form or as a compiled binary, for any purpose,
-commercial or non-commercial, and by any means.
-In jurisdictions that recognize copyright laws, the author or authors of this
-software dedicate any and all copyright interest in the software to the public
-domain. We make this dedication for the benefit of the public at large and to
-the detriment of our heirs and successors. We intend this dedication to be an
-overt act of relinquishment in perpetuity of all present and future rights to
-this software under copyright law.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-------------------------------------------------------------------------------
-*/
