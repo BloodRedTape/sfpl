@@ -518,6 +518,10 @@ struct ChartBase{
         };
     }
 
+    static TracePoint GetPoint(sfpl::DataSource source, int index){
+        return {source.X[index], source.Y[index]};
+    }
+
     void DrawContentLine(TracePoint p0, TracePoint p1, Pixel color, Range2D data_range){
         TracePoint pm0 = MapPointFromDataRange(p0, data_range);
         TracePoint pm1 = MapPointFromDataRange(p1, data_range);
@@ -605,9 +609,29 @@ private:
     }
 
     void DrawDataSource(sfpl::DataSource source, Range2D aligned_range, Pixel color, sfpl::LineStyle line_style){
+        const float acceptable_slope_error = (int(line_style) & int(sfpl::LineStyle::Dots)) ? 0.01 : 0.05;
+
         for(size_t i = 0; i < source.Count - 1; i++){
-            TracePoint p0 = {source.X[i], source.Y[i]};
-            TracePoint p1 = {source.X[i + 1], source.Y[i + 1]};
+            TracePoint p0 = GetPoint(source, i);
+            TracePoint p1 = GetPoint(source, i + 1);
+
+            float slope = Slope(p0, p1);
+
+            for(;;){
+                if(!(i + 2 < source.Count))
+                    break;
+
+                TracePoint candidate = GetPoint(source, i + 2);
+
+                if(std::abs(slope - Slope(p0, candidate)) > acceptable_slope_error)
+                    break;
+
+                if(int(line_style) & int(sfpl::LineStyle::Dots))
+                    DrawContentPoint(p1, color, aligned_range);
+
+                p1 = candidate;
+                i++;
+            }
 
             if(int(line_style) & int(sfpl::LineStyle::Lines))
                 DrawContentLine(p0, p1, color, aligned_range);
