@@ -31,22 +31,17 @@ struct LineChartStyle{
 };
 
 struct LineChartBuilder{
-    static bool Build(const DataSource &source, const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {});
+    static bool Build(const DataSource &source, const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {}){
+        return Build(&source, 1, outfilepath, style, params);
+    }
 
     template<size_t N>
-    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {});
+    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {}){
+        return Build(sources, N, outfilepath, style, params);
+    }
 
     static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, LineChartStyle style = {}, ImageOutputParams params = {});
 };
-
-inline bool LineChartBuilder::Build(const DataSource &source, const char *outfilepath, const LineChartStyle &style, const ImageOutputParams &params){
-    return Build(&source, 1, outfilepath, style, params);
-}
-
-template<size_t N>
-inline bool LineChartBuilder::Build(const DataSource (&sources)[N], const char *outfilepath, const LineChartStyle &style, const ImageOutputParams &params){
-    return Build(sources, N, outfilepath, style, params);
-}
 
 }//namespace sfpl::
 
