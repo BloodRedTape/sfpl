@@ -660,18 +660,22 @@ private:
     }
 };
 
-
-namespace sfpl{
-
-bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, sfpl::LineChartStyle style, sfpl::ImageOutputParams params){
-    const char *const ErrorFunctionName = "LineChartBuilder::Build";
-
+bool IsDataSourceValid(const char *caller, const sfpl::DataSource sources[], size_t sources_count){
     if(sources == nullptr || sources_count == 0)
-        return Error(ErrorFunctionName, "sources should be a valid array of size greater than zero");
+        return Error(caller, "sources should be a valid array of size greater than zero");
 
-    if(outfilepath == nullptr || outfilepath[0] == '\0')
-        outfilepath = s_DefaultOutputFilepath;
-    
+    for(size_t i = 0; i<sources_count; ++i){
+        if(sources[i].Count < 2)
+            return Error(caller, "DataSource[", i, "]: Can't build a plot using less than two points");
+        if(sources[i].X == nullptr)
+            return Error(caller, "DataSource[", i, "]: pointer to X array should be a valid non-null pointer");
+        if(sources[i].Y == nullptr)
+            return Error(caller, "DataSource[", i, "]: pointer to Y array should be a valid non-null pointer");
+    }
+    return true;
+}
+
+sfpl::ImageOutputParams ValidateImageOutputParams(sfpl::ImageOutputParams params){
     const size_t MinImageSize = 50;
 
     if(params.Width < MinImageSize)
@@ -680,14 +684,25 @@ bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, c
     if(params.Height < MinImageSize)
         params.Height = MinImageSize;
 
-    for(size_t i = 0; i<sources_count; ++i){
-        if(sources[i].Count < 2)
-            return Error(ErrorFunctionName, "Can't build a plot using less than two points");
-        if(sources[i].X == nullptr)
-            return Error(ErrorFunctionName, "pointer to X array should be a valid non-null pointer");
-        if(sources[i].Y == nullptr)
-            return Error(ErrorFunctionName, "pointer to Y array should be a valid non-null pointer");
-    }
+    return params;
+}
+
+const char *ValidateOutfilepath(const char *filepath){
+    if(filepath == nullptr || filepath[0] == '\0')
+        filepath = s_DefaultOutputFilepath;
+    return filepath;
+}
+
+namespace sfpl{
+
+bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, sfpl::LineChartStyle style, sfpl::ImageOutputParams params){
+    const char *const ErrorFunctionName = "LineChartBuilder::Build";
+
+    if(!IsDataSourceValid("LineChartBuilder::Build", sources, sources_count))
+        return false;
+    
+    outfilepath = ValidateOutfilepath(outfilepath);
+    params      = ValidateImageOutputParams(params);
 
     constexpr float MinTraceDataRange = 0.0001;
 
