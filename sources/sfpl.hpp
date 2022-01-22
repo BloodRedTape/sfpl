@@ -5,16 +5,19 @@
 
 namespace sfpl{
 
-struct ImageOutputParams{
-    size_t Width = 1280;
-    size_t Height = 720;
-};
-
 struct DataSource{
     const double *X = nullptr;
     const double *Y = nullptr;
     size_t Count = 0;
     const char *Name = "";
+};
+
+struct ChartParameters{
+    size_t Width  = 1280;
+    size_t Height = 720;
+    const char *Title      = "";
+    const char *XAxisName  = "";
+    const char *YAxisName  = "";
 };
 
 enum class LineStyle: int{
@@ -25,22 +28,19 @@ enum class LineStyle: int{
 
 struct LineChartStyle{
     enum LineStyle LineStyle = LineStyle::Lines;
-    const char *ChartTitle = "";
-    const char *XAxisName = "";
-    const char *YAxisName = "";
 };
 
 struct LineChartBuilder{
-    static bool Build(const DataSource &source, const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {}){
-        return Build(&source, 1, outfilepath, style, params);
+    static bool Build(const DataSource &source, const char *outfilepath, const ChartParameters &params = {}, LineChartStyle style = {}){
+        return Build(&source, 1, outfilepath, params, style);
     }
 
     template<size_t N>
-    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const LineChartStyle &style = {}, const ImageOutputParams &params = {}){
-        return Build(sources, N, outfilepath, style, params);
+    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const ChartParameters &params = {}, LineChartStyle style = {}){
+        return Build(sources, N, outfilepath, params, style);
     }
 
-    static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, LineChartStyle style = {}, ImageOutputParams params = {});
+    static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, ChartParameters params = {}, LineChartStyle style = {});
 };
 
 }//namespace sfpl::

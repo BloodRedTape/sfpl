@@ -467,7 +467,7 @@ struct ChartBase{
     const Pixel ContentBackgroundColor = {245, 252, 237, 255};
     const Pixel TextColor              = {80,  80,  80,  255};
 
-    ChartBase(const sfpl::ImageOutputParams &params):
+    ChartBase(const sfpl::ChartParameters &params):
         Canvas(params.Width, params.Height)
     {}
 
@@ -538,7 +538,7 @@ struct ChartBase{
 
 class LineChart: private ChartBase{
 public:
-    LineChart(const sfpl::DataSource data_sources[], size_t data_sources_count, const sfpl::LineChartStyle &style, const sfpl::ImageOutputParams &params):
+    LineChart(const sfpl::DataSource data_sources[], size_t data_sources_count, const sfpl::ChartParameters &params, sfpl::LineChartStyle style):
         ChartBase(params)
     {
         ContentMarginX = Canvas.Width*0.1;
@@ -557,7 +557,7 @@ public:
 
         DrawContentFrame();
         DrawContentBackground();
-        DrawContentBase(data_range, style.XAxisName, style.YAxisName, style.ChartTitle);
+        DrawContentBase(data_range, params.XAxisName, params.YAxisName, params.Title);
         DrawContent(data_sources, data_sources_count, data_range, style.LineStyle);
     }
 
@@ -675,14 +675,24 @@ bool IsDataSourceValid(const char *caller, const sfpl::DataSource sources[], siz
     return true;
 }
 
-sfpl::ImageOutputParams ValidateImageOutputParams(sfpl::ImageOutputParams params){
+sfpl::ChartParameters ValidateChartParameters(sfpl::ChartParameters params){
     const size_t MinImageSize = 50;
+    const char *const EmptyString = "";
 
     if(params.Width < MinImageSize)
         params.Width = MinImageSize;
     
     if(params.Height < MinImageSize)
         params.Height = MinImageSize;
+
+    if(!params.Title)
+        params.Title = EmptyString;
+
+    if(!params.XAxisName)
+        params.XAxisName = EmptyString;
+
+    if(!params.YAxisName)
+        params.YAxisName = EmptyString;
 
     return params;
 }
@@ -695,21 +705,21 @@ const char *ValidateOutfilepath(const char *filepath){
 
 namespace sfpl{
 
-bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, sfpl::LineChartStyle style, sfpl::ImageOutputParams params){
+bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, sfpl::ChartParameters params, sfpl::LineChartStyle style){
     const char *const ErrorFunctionName = "LineChartBuilder::Build";
 
     if(!IsDataSourceValid("LineChartBuilder::Build", sources, sources_count))
         return false;
     
     outfilepath = ValidateOutfilepath(outfilepath);
-    params      = ValidateImageOutputParams(params);
+    params      = ValidateChartParameters(params);
 
     constexpr float MinTraceDataRange = 0.0001;
 
     //if(!(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange))
         //return Error("can't build a plot, source data range approaches zero");
 
-    return LineChart(sources, sources_count, style, params).Write(outfilepath);
+    return LineChart(sources, sources_count, params, style).Write(outfilepath);
 }
 
 }//namespace libplot
