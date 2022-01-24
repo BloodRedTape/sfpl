@@ -370,8 +370,12 @@ struct Range{
         return {s_min.ToDouble(), s_max.ToDouble()};
     }   
 
-    bool IsInRange(double value){
+    bool IsInRange(double value)const{
         return value <= Max && value >= Min;
+    }
+
+    double Length()const{
+        return std::max(Max - Min, 0.0);
     }
          
 };
@@ -422,7 +426,7 @@ double GetNiceStep(const Range &true_range, const Range &aligned){
 }
 
 
-Range2D GetDataSourcesRange(const ::sfpl::DataSource sources[], size_t sources_count){
+Range2D GetDataSourcesRange(const sfpl::DataSource sources[], size_t sources_count){
     Range2D result = {
         {
             std::numeric_limits<double>::max(),
@@ -660,6 +664,150 @@ private:
     }
 };
 
+
+class MathChart: private ChartBase{
+public:
+    MathChart(const sfpl::DataSource data_sources[], size_t data_sources_count, const sfpl::ChartParameters &params, sfpl::MathChartStyle style):
+        ChartBase(params)
+    {
+        const Range2D data_range = GetDataSourcesRange(data_sources, data_sources_count).GetAligned(2);
+
+        const float chart_aspect = data_range.X.Length() / data_range.Y.Length();
+        const float image_aspect = Canvas.Width / float(Canvas.Height);
+
+        const float aspect_diff = image_aspect - chart_aspect;
+
+        if(aspect_diff >= 0.f){
+            ContentSizeY = Canvas.Height;
+            ContentSizeX = Canvas.Width * (chart_aspect/image_aspect);
+        }else{
+            ContentSizeX = Canvas.Width;
+            ContentSizeY = Canvas.Height * (image_aspect/chart_aspect);
+        }
+
+        ContentSizeX *= 0.85;
+        ContentSizeY *= 0.85;
+
+        ContentMarginX = (Canvas.Width - ContentSizeX) / 2;
+        ContentMarginY = (Canvas.Height - ContentSizeY) / 2;
+
+        TitleFontSize = std::min(ContentMarginX, ContentMarginY) * 0.6;
+        RCFontSize = TitleFontSize / 2;
+        AxisFontSize = RCFontSize * 1.3;
+
+        LineWidth = 3;
+        GridLineWidth = 3;
+
+
+        DrawContentFrame();
+        DrawContentBackground();
+        DrawContentBase(data_range, params.XAxisName, params.YAxisName, params.Title);
+        DrawContent(data_sources, data_sources_count, data_range, style.LineStyle);
+    }
+
+    bool Write(const char *filepath){
+        return Canvas.Write(filepath);
+    }
+private:
+    bool IncludesZero(Range range){
+        return range.Min <= 0 && range.Max >= 0;
+    }
+
+    void DrawContentBase(Range2D data_range, const char *x_axis_name, const char *y_axis_name, const char *title){
+        Range2D aligned_data_range = data_range.GetAligned(1);
+
+        auto x_step = GetNiceStep(data_range.X, aligned_data_range.X);
+        auto y_step = GetNiceStep(data_range.Y, aligned_data_range.Y);
+
+        for(auto i = 0; i <= std::ceil((aligned_data_range.X.Max - aligned_data_range.X.Min) / x_step); i++){
+            double current = aligned_data_range.X.Min + i*x_step;
+            if(data_range.X.IsInRange(current)){
+                TracePoint cross = {
+                    Map<double>(current, data_range.X.Min, data_range.X.Max, 0, ContentSizeX),
+                    Map<double>(0,       data_range.Y.Min, data_range.Y.Max, 0, ContentSizeY)
+                };
+
+                std::string label = Shorten(current);
+
+                DrawGridRow(cross.X, label.c_str());
+            }
+        }
+
+        size_t max_axis_text_size = 0;
+        for(auto i = 0; i <= std::ceil((aligned_data_range.Y.Max - aligned_data_range.Y.Min) / y_step); i++){
+            auto current = aligned_data_range.Y.Min + i*y_step;
+            if(data_range.Y.IsInRange(current)){
+                TracePoint cross = {
+                    Map<double>(0,       data_range.X.Min, data_range.X.Max, 0, ContentSizeX),
+                    Map<double>(current, data_range.Y.Min, data_range.Y.Max, 0, ContentSizeY)
+                };
+
+                std::string label = Shorten(current);
+
+                DrawGridColumn(cross.Y, label.c_str());
+
+                size_t text_length = s_DefaultFont.GetStringLength(label.c_str(), RCFontSize);
+                if(text_length > max_axis_text_size) max_axis_text_size = text_length;
+            }
+        }
+
+        DrawTitle(title);
+        DrawYAxisName(y_axis_name, std::min(ContentMarginX * 0.55, ContentMarginX*0.92 - max_axis_text_size));
+        DrawXAxisName(x_axis_name, ContentMarginY * 0.35);
+    }
+
+    void DrawDataSource(sfpl::DataSource source, Range2D aligned_range, Pixel color, sfpl::LineStyle line_style){
+        const float acceptable_slope_error = (int(line_style) & int(sfpl::LineStyle::Dots)) ? 0.01 : 0.05;
+
+        for(size_t i = 0; i < source.Count - 1; i++){
+            TracePoint p0 = GetPoint(source, i);
+            TracePoint p1 = GetPoint(source, i + 1);
+
+            float slope = Slope(p0, p1);
+
+            for(;;){
+                if(!(i + 2 < source.Count))
+                    break;
+
+                TracePoint candidate = GetPoint(source, i + 2);
+
+                if(std::abs(slope - Slope(p0, candidate)) > acceptable_slope_error)
+                    break;
+
+                if(int(line_style) & int(sfpl::LineStyle::Dots))
+                    DrawContentPoint(p1, color, aligned_range);
+
+                p1 = candidate;
+                i++;
+            }
+
+            if(int(line_style) & int(sfpl::LineStyle::Lines))
+                DrawContentLine(p0, p1, color, aligned_range);
+            if(int(line_style) & int(sfpl::LineStyle::Dots))
+                DrawContentPoint(p0, color, aligned_range);
+        }
+        TracePoint last = {source.X[source.Count - 1], source.Y[source.Count - 1]};
+
+        if(int(line_style) & int(sfpl::LineStyle::Dots))
+            DrawContentPoint(last, color, aligned_range);
+        
+        DrawDataSourceName(source.Name, last.Y, color);
+    }
+
+    void DrawDataSourceName(const char *name, size_t y_plot_range, Pixel color){
+        Canvas.DrawString(color, name, RCFontSize, Canvas.Width - ContentMarginX*0.9, y_plot_range + ContentMarginY);
+    }
+
+    void DrawContent(const sfpl::DataSource sources[], size_t sources_count, Range2D aligned_sources_range, sfpl::LineStyle line_style){
+        PaletteGenerator generator;
+        for(size_t i = 0; i<sources_count; i++){
+            Pixel color = generator.NextColor();
+
+            DrawDataSource(sources[i], aligned_sources_range, color, line_style);
+        }
+    }
+};
+
 bool IsDataSourceValid(const char *caller, const sfpl::DataSource sources[], size_t sources_count){
     if(sources == nullptr || sources_count == 0)
         return Error(caller, "sources should be a valid array of size greater than zero");
@@ -721,6 +869,24 @@ bool LineChartBuilder::Build(const DataSource sources[], size_t sources_count, c
 
     return LineChart(sources, sources_count, params, style).Write(outfilepath);
 }
+
+bool MathChartBuilder::Build(const DataSource sources[], size_t sources_count, const char *outfilepath, sfpl::ChartParameters params, sfpl::MathChartStyle style){
+    const char *const ErrorFunctionName = "LineChartBuilder::Build";
+
+    if(!IsDataSourceValid("MathChartBuilder::Build", sources, sources_count))
+        return false;
+    
+    outfilepath = ValidateOutfilepath(outfilepath);
+    params      = ValidateChartParameters(params);
+
+    constexpr float MinTraceDataRange = 0.0001;
+
+    //if(!(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange))
+        //return Error("can't build a plot, source data range approaches zero");
+
+    return MathChart(sources, sources_count, params, style).Write(outfilepath);
+}
+
 
 }//namespace libplot
 

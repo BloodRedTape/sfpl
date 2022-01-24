@@ -43,6 +43,24 @@ struct LineChartBuilder{
     static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, ChartParameters params = {}, LineChartStyle style = {});
 };
 
+struct MathChartStyle{
+    enum LineStyle LineStyle = LineStyle::Lines;
+};
+
+struct MathChartBuilder{
+    static bool Build(const DataSource &source, const char *outfilepath, const ChartParameters &params = {}, MathChartStyle style = {}){
+        return Build(&source, 1, outfilepath, params, style);
+    }
+
+    template<size_t N>
+    static bool Build(const DataSource (&sources)[N], const char *outfilepath, const ChartParameters &params = {}, MathChartStyle style = {}){
+        return Build(sources, N, outfilepath, params, style);
+    }
+
+    static bool Build(const DataSource sources[], size_t sources_count, const char *outfilepath, ChartParameters params = {}, MathChartStyle style = {});
+};
+
+
 }//namespace sfpl::
 
 #endif//SFPL_HPP

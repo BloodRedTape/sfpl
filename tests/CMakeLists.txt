@@ -9,6 +9,7 @@ set(SFPL_TESTS_SOURCES
 
     function_range.cpp
     line_chart_builder.cpp
+    math_chart_builder.cpp
 
     main.cpp
 )
