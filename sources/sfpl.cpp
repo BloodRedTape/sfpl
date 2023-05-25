@@ -642,12 +642,12 @@ private:
             if(int(line_style) & int(sfpl::LineStyle::Dots))
                 DrawContentPoint(p0, color, aligned_range);
         }
-        TracePoint last = {source.X[source.Count - 1], source.Y[source.Count - 1]};
+        TracePoint last = GetPoint(source, source.Count - 1);
 
         if(int(line_style) & int(sfpl::LineStyle::Dots))
             DrawContentPoint(last, color, aligned_range);
-        
-        DrawDataSourceName(source.Name, last.Y, color);
+
+        DrawDataSourceName(source.Name, Map<double>(last.Y, aligned_range.Y.Min, aligned_range.Y.Max, 0, ContentSizeY), color);
     }
 
     void DrawDataSourceName(const char *name, size_t y_plot_range, Pixel color){
@@ -791,7 +791,7 @@ private:
         if(int(line_style) & int(sfpl::LineStyle::Dots))
             DrawContentPoint(last, color, aligned_range);
         
-        DrawDataSourceName(source.Name, last.Y, color);
+        DrawDataSourceName(source.Name, Map<double>(last.Y, aligned_range.Y.Min, aligned_range.Y.Max, 0, ContentSizeY), color);
     }
 
     void DrawDataSourceName(const char *name, size_t y_plot_range, Pixel color){
