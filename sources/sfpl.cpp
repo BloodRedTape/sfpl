@@ -359,18 +359,26 @@ double Fraction(double number){
     return std::modf(number, &number);
 }
 
+double RoundDown(double value, double eps) {
+    return value - std::fmod(value, eps);
+}
+
+double RoundUp(double value, double eps) {
+    return value - std::remainder(value, eps);
+}
+
 struct Range{
     double Min = 0;
     double Max = 0;
 
-    Range GetAligned(std::size_t round = 2)const{
+    Range GetAligned(std::size_t round, double eps)const{
         ScientificDouble range(Max - Min);
         ScientificDouble s_min(Min), s_max(Max);
 
         s_min.Exponent = std::floor(s_min.Exponent * pow(10, s_min.Mantissa - range.Mantissa + round - 1)) / pow(10, s_min.Mantissa - range.Mantissa + round - 1);
         s_max.Exponent = std::ceil(s_max.Exponent * pow(10, s_max.Mantissa - range.Mantissa + round - 1)) / pow(10, s_max.Mantissa - range.Mantissa + round - 1);
 
-        return {s_min.ToDouble(), s_max.ToDouble()};
+        return {RoundDown(s_min.ToDouble(), eps), RoundUp(s_max.ToDouble(), eps)};
     }   
 
     bool IsInRange(double value)const{
@@ -387,8 +395,8 @@ struct Range2D{
     Range X{};
     Range Y{};
 
-    Range2D GetAligned(std::size_t round = 2)const{
-        return {X.GetAligned(round), Y.GetAligned(round)};
+    Range2D GetAligned(std::size_t round, double eps_x, double eps_y)const{
+        return {X.GetAligned(round, eps_x), Y.GetAligned(round, eps_y)};
     }
 };
 
@@ -407,7 +415,7 @@ double RoundByFirstDigit(double number){
     return scientific.ToDouble();
 }
 
-double GetNiceStep(const Range &true_range, const Range &aligned, std::size_t elements_count) {
+double GetNiceStep(const Range &true_range, const Range &aligned, double eps) {
     constexpr std::size_t Begin = 4;
     constexpr std::size_t End = 10;
 
@@ -420,26 +428,16 @@ double GetNiceStep(const Range &true_range, const Range &aligned, std::size_t el
             std::size_t occur = (true_range.Max - true_range.Min)/step.ToDouble();
 
             if(occur <= End && occur >= Begin){
-                return step.ToDouble();
+                return RoundUp(step.ToDouble(), eps);
             }
         }
     }
+    
+    constexpr std::size_t Segments = 5;
 
-    int segments = 5;
+    auto step = (true_range.Max - true_range.Min) / Segments;
 
-    if(elements_count < 4)
-        segments = elements_count;
-
-    if(elements_count % 4 == 0)
-        segments = 3; 
-
-    if(elements_count % 5 == 0)
-        segments = 4; 
-
-    if(elements_count % 6 == 0)
-        segments = 5; 
-
-    return (true_range.Max - true_range.Min) / segments;
+    return RoundUp(step, eps);
 }
 
 
@@ -578,11 +576,12 @@ public:
         LineWidth = 3;
         GridLineWidth = 3;
 
-        Range2D data_range = GetDataSourcesRange(data_sources, data_sources_count).GetAligned();
+        Range2D data_range = GetDataSourcesRange(data_sources, data_sources_count);
+        Range2D aligned_data_range = data_range.GetAligned(0, params.EpsX, params.EpsY);
 
         DrawContentFrame();
         DrawContentBackground();
-        DrawContentBase(data_range, params.XAxisName, params.YAxisName, params.Title, data_sources, data_sources_count);
+        DrawContentBase(aligned_data_range, data_range, params, data_sources, data_sources_count);
         DrawContent(data_sources, data_sources_count, data_range, style.LineStyle);
     }
 
@@ -606,14 +605,13 @@ private:
         return it->Count;
     }
 
-    void DrawContentBase(Range2D data_range, const char *x_axis_name, const char *y_axis_name, const char *title, const sfpl::DataSource data_sources[], std::size_t data_sources_count){
-        Range2D aligned_data_range = data_range.GetAligned(0);
-
-        auto x_step = GetNiceStep(data_range.X, aligned_data_range.X, MaxDataSourceCount(data_sources, data_sources_count));
-        auto y_step = GetNiceStep(data_range.Y, aligned_data_range.Y, MaxDataSourceCount(data_sources, data_sources_count));
+    void DrawContentBase(Range2D aligned_data_range, Range2D data_range, const sfpl::ChartParameters &params, const sfpl::DataSource data_sources[], std::size_t data_sources_count){
+        auto x_step = GetNiceStep(data_range.X, aligned_data_range.X, params.EpsX);
+        auto y_step = GetNiceStep(data_range.Y, aligned_data_range.Y, params.EpsY);
 
         for(auto i = 0; i <= std::ceil((aligned_data_range.X.Max - aligned_data_range.X.Min) / x_step); i++){
             double current = aligned_data_range.X.Min + i*x_step;
+
             if(data_range.X.IsInRange(current)){
                 TracePoint cross = {
                     Map<double>(current, data_range.X.Min, data_range.X.Max, 0, ContentSizeX),
@@ -628,7 +626,8 @@ private:
 
         std::size_t max_axis_text_size = 0;
         for(auto i = 0; i <= std::ceil((aligned_data_range.Y.Max - aligned_data_range.Y.Min) / y_step); i++){
-            auto current = aligned_data_range.Y.Min + i*y_step;
+            double current = aligned_data_range.Y.Min + i*y_step;
+
             if(data_range.Y.IsInRange(current)){
                 TracePoint cross = {
                     Map<double>(0,       data_range.X.Min, data_range.X.Max, 0, ContentSizeX),
@@ -644,9 +643,9 @@ private:
             }
         }
 
-        DrawTitle(title);
-        DrawYAxisName(y_axis_name, std::min(ContentMarginX * 0.55, ContentMarginX*0.92 - max_axis_text_size));
-        DrawXAxisName(x_axis_name, ContentMarginY * 0.35);
+        DrawTitle(params.Title);
+        DrawYAxisName(params.YAxisName, std::min(ContentMarginX * 0.55, ContentMarginX*0.92 - max_axis_text_size));
+        DrawXAxisName(params.XAxisName, ContentMarginY * 0.35);
     }
 
     void DrawDataSource(sfpl::DataSource source, Range2D aligned_range, Pixel color, sfpl::LineStyle line_style){
@@ -707,7 +706,7 @@ public:
     MathChart(const sfpl::DataSource data_sources[], std::size_t data_sources_count, const sfpl::ChartParameters &params, sfpl::MathChartStyle style):
         ChartBase(params)
     {
-        const Range2D data_range = GetDataSourcesRange(data_sources, data_sources_count).GetAligned(2);
+        const Range2D data_range = GetDataSourcesRange(data_sources, data_sources_count).GetAligned(2, params.EpsX, params.EpsY);
 
         const float chart_aspect = data_range.X.Length() / data_range.Y.Length();
         const float image_aspect = Canvas.Width / float(Canvas.Height);
@@ -751,7 +750,7 @@ private:
     }
 
     void DrawContentBase(Range2D data_range, const char *x_axis_name, const char *y_axis_name, const char *title){
-        Range2D aligned_data_range = data_range.GetAligned(1);
+        Range2D aligned_data_range = data_range.GetAligned(1, 0.1, 0.1);
 
         auto x_step = GetNiceStep(data_range.X, aligned_data_range.X, 0);
         auto y_step = GetNiceStep(data_range.Y, aligned_data_range.Y, 0);

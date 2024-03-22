@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <cfloat>
 
 namespace sfpl{
 
@@ -23,6 +24,8 @@ struct ChartParameters{
     const char *YAxisName  = "";
     std::function<std::string(double)> XStringify = &DefaultStringify;
     std::function<std::string(double)> YStringify = &DefaultStringify;
+    double EpsX = std::numeric_limits<double>::epsilon();
+    double EpsY = std::numeric_limits<double>::epsilon();
 
     static std::string DefaultStringify(double value);
 };
