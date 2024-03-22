@@ -582,7 +582,7 @@ public:
         DrawContentFrame();
         DrawContentBackground();
         DrawContentBase(aligned_data_range, data_range, params, data_sources, data_sources_count);
-        DrawContent(data_sources, data_sources_count, data_range, style.LineStyle);
+        DrawContent(data_sources, data_sources_count, data_range, style.LineStyle, style.NamingStyle);
     }
 
     bool Write(const char *filepath){
@@ -648,7 +648,7 @@ private:
         DrawXAxisName(params.XAxisName, ContentMarginY * 0.35);
     }
 
-    void DrawDataSource(sfpl::DataSource source, Range2D aligned_range, Pixel color, sfpl::LineStyle line_style){
+    void DrawDataSource(sfpl::DataSource source, Range2D aligned_range, Pixel color, sfpl::LineStyle line_style, sfpl::NamingStyle naming_style){
         const float acceptable_slope_error = (int(line_style) & int(sfpl::LineStyle::Dots)) ? 0.01 : 0.05;
 
         for(std::size_t i = 0; i < source.Count - 1; i++){
@@ -683,19 +683,27 @@ private:
         if(int(line_style) & int(sfpl::LineStyle::Dots))
             DrawContentPoint(last, color, aligned_range);
 
-        DrawDataSourceName(source.Name, Map<double>(last.Y, aligned_range.Y.Min, aligned_range.Y.Max, 0, ContentSizeY), color);
+        if(naming_style == sfpl::NamingStyle::Line)
+            DrawDataSourceName(source.Name, Map<double>(last.Y, aligned_range.Y.Min, aligned_range.Y.Max, 0, ContentSizeY), color);
     }
 
     void DrawDataSourceName(const char *name, std::size_t y_plot_range, Pixel color){
         Canvas.DrawString(color, name, RCFontSize, Canvas.Width - ContentMarginX*0.9, y_plot_range + ContentMarginY);
     }
 
-    void DrawContent(const sfpl::DataSource sources[], std::size_t sources_count, Range2D aligned_sources_range, sfpl::LineStyle line_style){
+    void DrawContent(const sfpl::DataSource sources[], std::size_t sources_count, Range2D aligned_sources_range, sfpl::LineStyle line_style, sfpl::NamingStyle naming_style){
         PaletteGenerator generator;
+
+        std::size_t top_corner_start = Canvas.Height - ContentMarginY;
+        std::size_t left_corner_start = Canvas.Width - ContentMarginX * 0.9;
         for(std::size_t i = 0; i<sources_count; i++){
             Pixel color = generator.NextColor();
 
-            DrawDataSource(sources[i], aligned_sources_range, color, line_style);
+            DrawDataSource(sources[i], aligned_sources_range, color, line_style, naming_style);
+
+            if(naming_style == sfpl::NamingStyle::Corner){
+                Canvas.DrawString(color, sources[i].Name, RCFontSize, left_corner_start, top_corner_start - (RCFontSize * (1 + i) + RCFontSize * 0.2 * i));
+            }
         }
     }
 };

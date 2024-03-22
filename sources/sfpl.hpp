@@ -36,8 +36,14 @@ enum class LineStyle: int{
     LinesAndDots = 0x03
 };
 
+enum class NamingStyle{
+    Corner,
+    Line
+};
+
 struct LineChartStyle{
     enum LineStyle LineStyle = LineStyle::Lines;
+    enum NamingStyle NamingStyle = NamingStyle::Corner;
 };
 
 enum class ImageFormat {
