@@ -609,7 +609,9 @@ private:
         auto x_step = GetNiceStep(data_range.X, aligned_data_range.X, params.EpsX);
         auto y_step = GetNiceStep(data_range.Y, aligned_data_range.Y, params.EpsY);
 
-        for(auto i = 0; i <= std::ceil((aligned_data_range.X.Max - aligned_data_range.X.Min) / x_step); i++){
+
+        const double x_fragments = std::ceil((aligned_data_range.X.Max - aligned_data_range.X.Min) / x_step);
+        for(auto i = 0; std::isfinite(x_fragments) && i <= x_fragments; i++){
             double current = aligned_data_range.X.Min + i*x_step;
 
             if(data_range.X.IsInRange(current)){
@@ -625,7 +627,8 @@ private:
         }
 
         std::size_t max_axis_text_size = 0;
-        for(auto i = 0; i <= std::ceil((aligned_data_range.Y.Max - aligned_data_range.Y.Min) / y_step); i++){
+        const double y_fragments = std::ceil((aligned_data_range.Y.Max - aligned_data_range.Y.Min) / y_step);
+        for(auto i = 0; std::isfinite(y_fragments) && i <= y_fragments; i++){
             double current = aligned_data_range.Y.Min + i*y_step;
 
             if(data_range.Y.IsInRange(current)){
