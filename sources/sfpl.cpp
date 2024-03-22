@@ -912,8 +912,10 @@ bool LineChartBuilder::Build(const DataSource sources[], std::size_t sources_cou
 
     constexpr float MinTraceDataRange = 0.0001;
 
-    //if(!(std::abs(range.x.Max - range.x.Min) > MinTraceDataRange && std::abs(range.y.Max - range.y.Min) > MinTraceDataRange))
-        //return Error("can't build a plot, source data range approaches zero");
+    auto range = GetDataSourcesRange(sources, sources_count);
+
+    if(!(std::abs(range.X.Max - range.X.Min) > MinTraceDataRange && std::abs(range.Y.Max - range.Y.Min) > MinTraceDataRange))
+        return Error("can't build a plot, source data range approaches zero");
 
     return LineChart(sources, sources_count, params, style).Write(outfilepath);
 }
