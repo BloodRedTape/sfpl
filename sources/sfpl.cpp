@@ -926,6 +926,13 @@ std::string LineChartBuilder::BuildToMemory(const DataSource sources[], std::siz
 
     params = ValidateChartParameters(params);
     
+    constexpr float MinTraceDataRange = 0.0001;
+
+    auto range = GetDataSourcesRange(sources, sources_count);
+
+    if(!(std::abs(range.X.Max - range.X.Min) > MinTraceDataRange && std::abs(range.Y.Max - range.Y.Min) > MinTraceDataRange))
+        return {};
+    
     return LineChart(sources, sources_count, params, style).Write(format);
 }
 
