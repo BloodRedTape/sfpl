@@ -44,7 +44,7 @@ void LineChartBuilderTest(){
 
         const auto build_begin = std::chrono::steady_clock::now();
 
-        LineChartBuilder::Build(source, ("tests/line_chart_builder/" + std::to_string(i) + "_" + std::string(range.Name) + ".jpg").c_str(), params, style);
+        LineChartBuilder::Build(source, ("./tests/line_chart_builder/" + std::to_string(i) + "_" + std::string(range.Name) + ".jpg").c_str(), params, style);
 
         const auto build_end = std::chrono::steady_clock::now();
         const float build_time = std::chrono::duration_cast<std::chrono::nanoseconds>(build_end - build_begin).count() / 1000000.f;
