@@ -26,6 +26,8 @@
 #define Assert(x, msg) (void)0
 #endif
 
+#define STB_IMAGE_WRITE_STATIC 1
+#define STBTT_STATIC 1
 
 using u8 = uint8_t;
 struct stbtt_fontinfo;
